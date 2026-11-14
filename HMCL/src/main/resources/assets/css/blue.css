@@ -1,0 +1,64 @@
+/*
+ * HPCL Launcher - PCL-inspired "Longmao Blue" default palette.
+ * Derived from HMCL v3.16.4 (GPLv3). Upstream copyright remains in this file's history.
+ */
+* {
+    -monet-primary: #1268D6;
+    -monet-on-primary: #FFFFFF;
+    -monet-primary-container: #2E86EE;
+    -monet-on-primary-container: #FFFFFF;
+    -monet-primary-fixed: #D8E9FF;
+    -monet-primary-fixed-dim: #A9CDFF;
+    -monet-on-primary-fixed: #001B3F;
+    -monet-on-primary-fixed-variant: #0A4FA8;
+    -monet-secondary: #4A6285;
+    -monet-on-secondary: #FFFFFF;
+    -monet-secondary-container: #DCE9FA;
+    -monet-on-secondary-container: #334B6B;
+    -monet-secondary-fixed: #DCE9FA;
+    -monet-secondary-fixed-dim: #B9CFEA;
+    -monet-on-secondary-fixed: #12263F;
+    -monet-on-secondary-fixed-variant: #334B6B;
+    -monet-tertiary: #7A5C00;
+    -monet-on-tertiary: #FFFFFF;
+    -monet-tertiary-container: #9A7500;
+    -monet-on-tertiary-container: #FFF8E8;
+    -monet-tertiary-fixed: #FFE1A6;
+    -monet-tertiary-fixed-dim: #F3C463;
+    -monet-on-tertiary-fixed: #261B00;
+    -monet-on-tertiary-fixed-variant: #5B4400;
+    -monet-error: #C62828;
+    -monet-on-error: #FFFFFF;
+    -monet-error-container: #FFDAD6;
+    -monet-on-error-container: #93000A;
+    -monet-surface: #F7FAFF;
+    -monet-on-surface: #17273D;
+    -monet-surface-dim: #D8E0EC;
+    -monet-surface-bright: #FFFFFF;
+    -monet-surface-container-lowest: #FFFFFF;
+    -monet-surface-container-low: #F2F7FF;
+    -monet-surface-container: #EAF1FB;
+    -monet-surface-container-high: #E3ECF8;
+    -monet-surface-container-highest: #DCE6F4;
+    -monet-surface-variant: #E1EBF8;
+    -monet-on-surface-variant: #4A5B73;
+    -monet-background: #F7FAFF;
+    -monet-on-background: #17273D;
+    -monet-outline: #7A8AA0;
+    -monet-outline-variant: #C9D9EC;
+    -monet-shadow: #0A2A55;
+    -monet-scrim: #0A1B30;
+    -monet-inverse-surface: #22344C;
+    -monet-inverse-on-surface: #EDF4FF;
+    -monet-inverse-primary: #A9CDFF;
+    -monet-surface-tint: #2E86EE;
+    -monet-primary-seed: #2E86EE;
+    -monet-primary-transparent-50: #1268D680;
+    -monet-secondary-container-transparent-50: #DCE9FA80;
+    -monet-surface-transparent-50: #F7FAFF80;
+    -monet-surface-transparent-80: #F7FAFFCC;
+    -monet-on-surface-variant-transparent-38: #4A5B7361;
+    -monet-surface-container-low-transparent-80: #F2F7FFCC;
+    -monet-secondary-container-transparent-80: #DCE9FACC;
+    -monet-inverse-surface-transparent-80: #22344CCC;
+}

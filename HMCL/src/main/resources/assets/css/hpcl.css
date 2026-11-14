@@ -1,0 +1,1814 @@
+/*
+ * HPCL Launcher - PCL-style skin
+ *
+ * Palette / radii / shadows / easing transcribed from PCL open source:
+ *   ModSecret.vb (Color1..Color8, ColorBg1, ThemeRefreshMain gradient),
+ *   MyCard.vb (245/255 white, radius 5, shadow radius 3 @ 0.07 / hover 0.4),
+ *   MyListItem.xaml.vb (120/180ms states, ColorBrush7/6/Bg1),
+ *   MyButton.xaml.vb (ColorBrushHalfWhite, 100/200ms colour, 0.955 press),
+ *   FormMain.xaml.vb (ImgBack opacity + blur, PanBack scrim, PageChangeActual),
+ *   MyPageRight.vb (25ms staggered entrance), PageLaunchLeft.xaml (progress bar).
+ * Loaded last by org.jackhuang.hmcl.setting.StyleSheets so it overrides upstream.
+ *
+ * Readability contract: PCL never paints text directly on the wallpaper. A
+ * semi-opaque light scrim (.hpcl-surface) sits above the image, and every card
+ * is white. All text roles below use a dark ink on light surfaces.
+ */
+
+/* ------------------------------------------------------------------ *
+ * Palette, ink levels and typography                                 *
+ * ------------------------------------------------------------------ */
+* {
+    /* PCL Color1..Color8, HSL 210 / 85% */
+    -hpcl-c1: #343D4A;
+    -hpcl-c2: #0B5BCB;
+    -hpcl-c3: #1370F3;
+    -hpcl-c4: #4890F5;
+    -hpcl-c5: #96C0F9;
+    -hpcl-c6: #D5E6FD;
+    -hpcl-c7: #DEECFD;
+    -hpcl-c8: #EAF2FE;
+
+    /* Ink: PCL keeps dark slate text on white cards. Never white on white. */
+    -hpcl-ink: #1B2738;
+    -hpcl-ink-2: #33445D;
+    -hpcl-ink-3: #4C607A;
+    -hpcl-ink-muted: #5E7190;
+    -hpcl-ink-on-blue: #FFFFFF;
+
+    -hpcl-card-bg: #FFFFFF;
+    -hpcl-card-bg-soft: rgba(255, 255, 255, 0.94);
+    -hpcl-divider: #C9DCF5;
+
+    /* PCL-like font stack. A CJK-capable family MUST be first: JavaFX picks
+       the first resolvable family and does not fall back per-glyph. On Linux
+       "Microsoft YaHei UI" resolves to a Latin-only Noto Sans and renders all
+       Chinese as tofu, so Noto Sans CJK SC leads; Windows has no such family
+       and falls through to Microsoft YaHei UI (the authentic PCL look). */
+    -hpcl-typeface: "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", "WenQuanYi Micro Hei", sans-serif;
+    -hpcl-mono-typeface: "Noto Sans Mono CJK SC", "Consolas", "Cascadia Mono", "DejaVu Sans Mono", monospace;
+
+    /* PCL ThemeRefreshMain / PanTitle.Background: three HSL(210, 85, 48 / 54 / 48)
+       stops from left to right (ColorHueTopbarDelta = 0). */
+    -hpcl-topbar-gradient: linear-gradient(to right, #127AE2 0%, #268AED 50%, #127AE2 100%);
+    -hpcl-button-gradient: linear-gradient(to right, #1370F3 0%, #4890F5 100%);
+    -hpcl-button-gradient-hover: linear-gradient(to right, #2C81FA 0%, #6AA6F8 100%);
+    /* PCL ThemeRefreshMain "PanForm.Background" (UiBackgroundColorful=True):
+       diagonal gradient from StartPoint (0.9, 0) to EndPoint (0.1, 1) with
+       stops at offset -0.1 / 0.4 / 1.1 and colours
+       HSL(195, 68, 91) / HSL(210, 68, 91) / HSL(225, 68, 91)
+       = #D8F0F8 / #D8E8F8 / #D8E0F8. PCL2 ships NO default wallpaper; the
+       window is this clean gradient, so it is fully opaque here. */
+    -hpcl-scrim: linear-gradient(from 90% 0% to 10% 100%,
+        #D8F0F8 0%,
+        #D8E8F8 45%,
+        #D8E0F8 100%);
+    /* PCL UiBackgroundColorful=False: a flat #F5F5F5 (245,245,245) sheet. */
+    -hpcl-bg-flat: #F5F5F5;
+    /* ImgBack model: when the user picks a custom wallpaper PCL dims it with
+       UiBackgroundOpacity and blurs it, then draws a translucent sheet above. */
+    -hpcl-scrim-wallpaper: linear-gradient(from 90% 0% to 10% 100%,
+        rgba(216, 240, 248, 0.82) 0%,
+        rgba(216, 232, 248, 0.80) 45%,
+        rgba(216, 224, 248, 0.84) 100%);
+
+    /* PCL ModSecret: ColorBg1 = MyColor(190, Color7) -> Color7 at 190/255.
+       This is the idle background of every MyListItem. */
+    -hpcl-bg1: rgba(222, 236, 253, 0.745);
+
+    /* Re-map upstream ink roles so EVERY stock HMCL control stays legible
+       on the light PCL surfaces. This fixes white-on-white text globally. */
+    -monet-on-surface: #1B2738;
+    -monet-on-surface-variant: #40536D;
+    -monet-on-secondary-container: #123C7A;
+    -monet-on-background: #1B2738;
+    -monet-outline: #8496AD;
+    -monet-on-primary-fixed: #0A2A5E;
+    -monet-on-primary-fixed-variant: #0A4FA8;
+    -monet-inverse-on-surface: #1B2738;
+}
+
+.root {
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif;
+    -fx-font-size: 13px;
+    -fx-text-fill: -hpcl-ink;
+}
+
+.label, .text, .text-flow, .titled-pane > .title, .menu-button, .choice-box, .combo-box {
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif;
+    -fx-text-fill: -hpcl-ink;
+}
+
+/* Stock HMCL ink roles -> PCL ink levels */
+.title-label { -fx-text-fill: -hpcl-ink; -fx-font-weight: bold; }
+.subtitle-label { -fx-text-fill: -hpcl-ink-2; -fx-font-size: 12px; }
+.hyperlink { -fx-text-fill: -hpcl-c2; }
+.svg { -fx-fill: -hpcl-ink-2; }
+
+/* Two-line list items: the subtitle used 10px faded grey, unreadable on white. */
+.two-line-list-item > .first-line > .title,
+.advanced-list-item .two-line-list-item .title,
+.game-directory-list-item .two-line-list-item .title {
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif;
+    -fx-font-size: 13px;
+    -fx-text-fill: -hpcl-ink;
+}
+.two-line-list-item .subtitle,
+.advanced-list-item .two-line-list-item .subtitle,
+.game-directory-list-item .two-line-list-item .subtitle {
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif;
+    -fx-font-size: 11px;
+    -fx-text-fill: -hpcl-ink-2;
+}
+.advanced-list-item:selected .two-line-list-item .title,
+.game-directory-list-item:selected .two-line-list-item .title {
+    -fx-text-fill: -hpcl-c2;
+    -fx-font-weight: bold;
+}
+
+/* Tab headers and navigation labels */
+.tab-label { -fx-font-size: 14px; -fx-text-fill: -hpcl-ink-2; }
+.tab-header-background { -fx-background-color: transparent; }
+.tab-selected-line { -fx-background-color: -hpcl-c3; }
+.notice-pane .label, .notice-pane .text { -fx-text-fill: -hpcl-ink-2; }
+
+.hint, .hint .label, .hint .text { -fx-text-fill: -hpcl-ink; }
+.hint.info { -fx-background-color: -hpcl-c7; -fx-border-color: -hpcl-c5; }
+
+.text-field, .text-area, .jfx-text-field, .jfx-text-area {
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif;
+    -fx-text-fill: -hpcl-ink;
+    -fx-prompt-text-fill: -hpcl-ink-muted;
+}
+
+/* ------------------------------------------------------------------ *
+ * Window / backgrounds                                               *
+ * PCL: wallpaper is dimmed + blurred, then a light scrim is drawn     *
+ * above it. Content is never painted directly on the image.           *
+ * ------------------------------------------------------------------ */
+.gray-background {
+    -fx-background-color: rgba(228, 239, 253, 0.94);
+}
+
+.content-background {
+    -fx-background-color: -hpcl-scrim;
+}
+
+/* Explicit scrim used by the PCL home surface */
+.hpcl-surface {
+    -fx-background-color: -hpcl-scrim;
+}
+
+/* Global PanForm background (DecoratorSkin.scrimNode).
+   PCL2 has no default wallpaper: PanForm.Background IS the diagonal
+   gradient. Only a user-chosen custom image is shown behind it (ImgBack),
+   dimmed + blurred, and then this class switches to the translucent sheet. */
+.hpcl-scrim {
+    -fx-background-color: -hpcl-scrim;
+}
+.hpcl-scrim.hpcl-scrim-wallpaper {
+    -fx-background-color: -hpcl-scrim-wallpaper;
+}
+/* PCL ImgBack: UiBackgroundOpacity + BlurEffect(Radius = UiBackgroundBlur+1).
+   A Gaussian blur is applied in DecoratorSkin; here we keep the node's base
+   opacity low so the gradient above stays legible. */
+.hpcl-wallpaper {
+    -fx-background-color: transparent;
+}
+
+.jfx-tool-bar.background {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent transparent -hpcl-divider transparent;
+    -fx-border-width: 0 0 1 0;
+}
+
+.jfx-tool-bar .jfx-decorator-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hpcl-ink;
+}
+
+/* Upstream paints window-button glyphs white (on-primary-container). On the
+   light PCL title bar they were invisible. Force dark ink at higher specificity. */
+.jfx-tool-bar .jfx-decorator-button .svg,
+.jfx-tool-bar .jfx-rippler .svg,
+.jfx-tool-bar .svg {
+    -fx-fill: -hpcl-ink;
+}
+.jfx-tool-bar Label,
+.jfx-tool-bar.gray-background Label {
+    -fx-text-fill: -hpcl-ink;
+}
+.jfx-tool-bar .jfx-decorator-button:hover { -fx-background-color: -hpcl-c7; }
+.jfx-tool-bar .jfx-decorator-button:hover .svg { -fx-fill: -hpcl-c2; }
+
+.jfx-decorator-content-container {
+    -fx-background-color: transparent;
+}
+
+.navigation-bar { -fx-padding: 0 8 0 8; }
+
+/* ------------------------------------------------------------------ *
+ * Cards (PCL MyCard.vb: Color.FromArgb(245,255,255,255), CornerRadius 5,
+ *        MyDropShadow ShadowRadius 3 / idle Opacity 0.07 / hover 0.4,  *
+ *        heading FontSize 13 Bold ColorBrush1, hover -> ColorBrush2)   *
+ * ------------------------------------------------------------------ */
+.card,
+.card-no-padding,
+.card-non-transparent,
+.hpcl-card {
+    -fx-background-color: rgba(255, 255, 255, 0.96);
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-border-color: rgba(11, 91, 203, 0.10);
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(52, 61, 74, 0.07), 3, 0.07, 0, 1);
+}
+
+.hpcl-card {
+    -fx-spacing: 8;
+}
+
+/* PCL MyCard MouseEnter: shadow -> ColorObject4 @ 0.4 and the title ink
+   animates from ColorBrush1 to ColorBrush2 over 90ms. */
+.hpcl-card:hover, .card:hover {
+    -fx-effect: dropshadow(gaussian, rgba(72, 144, 245, 0.40), 6, 0.25, 0, 2);
+}
+
+.hpcl-card-title {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hpcl-c1;
+    -fx-padding: 0 0 8 0;
+}
+
+.hpcl-card:hover .hpcl-card-title {
+    -fx-text-fill: -hpcl-c2;
+}
+
+.hpcl-badge {
+    -fx-background-color: -hpcl-c6;
+    -fx-text-fill: -hpcl-c2;
+    -fx-background-radius: 10;
+    -fx-padding: 3 10 3 10;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+}
+
+/* ------------------------------------------------------------------ *
+ * Left sidebar                                                       *
+ * ------------------------------------------------------------------ */
+/* PCL PageLaunchLeft.xaml declares Width = 300 for the left pane. */
+.hpcl-sidebar {
+    /* PCL PageLaunchLeft sits on a plain white pane; the wallpaper only shows
+       through the right-hand content area. */
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent -hpcl-divider transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 18 20 18 20;
+    -fx-spacing: 10;
+    -fx-min-width: 300;
+    -fx-pref-width: 300;
+    -fx-max-width: 300;
+}
+
+/* PCL PageLaunchLeft: cards scroll, launch bar stays pinned at the bottom. */
+.hpcl-sidebar-cards { -fx-padding: 0 2 0 0; }
+.hpcl-sidebar-scroll, .hpcl-sidebar-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+.hpcl-sidebar-scroll { -fx-padding: 0; -fx-fit-to-width: true; }
+
+/* PCL PanTypeOne: translucent capsule, radius 13, height 27, blue ink. */
+.hpcl-login-badge {
+    -fx-background-color: rgba(255, 255, 255, 0.55);
+    -fx-background-radius: 13;
+    -fx-min-height: 27; -fx-pref-height: 27; -fx-max-height: 27;
+    -fx-padding: 0 14 0 12;
+    -fx-max-width: infinity;
+}
+.hpcl-login-badge-text {
+    -fx-text-fill: -hpcl-c3;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+.hpcl-login-badge-icon, .hpcl-login-badge-icon .svg { -fx-fill: -hpcl-c3; }
+
+/* PCL MyHint.xaml: 3px coloured left border, radius 2, 12/9 padding. */
+.hpcl-hint {
+    -fx-background-color: -hpcl-c7;
+    -fx-border-color: transparent transparent transparent -hpcl-c3;
+    -fx-border-width: 0 0 0 3;
+    -fx-background-radius: 2;
+    -fx-padding: 9 12 9 12;
+    -fx-max-width: infinity;
+}
+.hpcl-hint-text { -fx-text-fill: -hpcl-ink; -fx-font-size: 12.5px; }
+
+/* PCL PageLaunchRight.xaml: StackPanel Margin 25,25,25,10 and each
+   MyCard has Margin 0,0,0,15 (15px between cards). */
+.hpcl-card-flow {
+    -fx-padding: 25 25 10 25;
+    -fx-spacing: 15;
+    -fx-max-width: 820;
+}
+.hpcl-card-flow-scroll, .hpcl-card-flow-scroll > .viewport {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+}
+.hpcl-card-flow-scroll { -fx-fit-to-width: true; -fx-padding: 0; }
+
+/* PCL MyCard: heading at (15,12), body inset from y=34 (Margin 15,34,15,13). */
+.hpcl-flow-card {
+    -fx-background-color: rgba(255, 255, 255, 0.96);
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-border-color: rgba(11, 91, 203, 0.10);
+    -fx-border-width: 1;
+    -fx-padding: 12 15 13 15;
+    -fx-effect: dropshadow(gaussian, rgba(52, 61, 74, 0.07), 3, 0.07, 0, 1);
+    -fx-max-width: infinity;
+}
+.hpcl-flow-card:hover {
+    -fx-effect: dropshadow(gaussian, rgba(72, 144, 245, 0.40), 6, 0.25, 0, 2);
+}
+.hpcl-flow-card-body { -fx-padding: 0 0 0 0; }
+
+/* PCL MyListItem: idle ColorBrushBg1, hover ColorBrush7, press ColorBrush6. */
+.hpcl-card-list-item {
+    -fx-background-color: -hpcl-bg1;
+    -fx-background-radius: 4;
+    -fx-padding: 9 12 9 12;
+    -fx-cursor: hand;
+    -fx-min-height: 46;
+}
+.hpcl-card-list-item:hover { -fx-background-color: -hpcl-c7; }
+.hpcl-card-list-item:pressed { -fx-background-color: -hpcl-c6; }
+.hpcl-list-title { -fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: -hpcl-ink; }
+.hpcl-list-subtitle { -fx-font-size: 11.5px; -fx-text-fill: -hpcl-ink-2; }
+.hpcl-list-icon, .hpcl-list-icon .svg { -fx-fill: -hpcl-c3; }
+.hpcl-list-arrow, .hpcl-list-arrow .svg { -fx-fill: -hpcl-ink-muted; }
+
+.hpcl-brand { -fx-padding: 4 8 10 8; }
+
+.hpcl-brand-title {
+    -fx-font-size: 30px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hpcl-c2;
+}
+
+.hpcl-brand-subtitle {
+    -fx-font-size: 11px;
+    -fx-text-fill: -hpcl-ink-2;
+    -fx-font-weight: bold;
+}
+
+/* PCL MyListItem idles on ColorBrushBg1 (Color7 @ 190/255), fills with
+   ColorBrush7 on hover and ColorBrush6 while pressed. A 3px ColorBrush3
+   bar marks the selected entry (PCL RectCheck). */
+.hpcl-card .advanced-list-item {
+    -fx-background-color: -hpcl-bg1;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-border-width: 0;
+}
+
+.hpcl-card .advanced-list-item:hover > .rippler-container > .container {
+    -fx-background-color: -hpcl-c7;
+    -fx-background-radius: 4;
+}
+
+.hpcl-card .advanced-list-item:pressed > .rippler-container > .container {
+    -fx-background-color: -hpcl-c6;
+    -fx-background-radius: 4;
+}
+
+.hpcl-card .advanced-list-item:selected > .rippler-container > .container {
+    -fx-background-color: -hpcl-c6;
+    -fx-background-radius: 4;
+}
+
+.hpcl-card .advanced-list-item:selected {
+    -fx-border-color: transparent transparent transparent -hpcl-c3;
+    -fx-border-width: 0 0 0 3;
+    -fx-border-radius: 4;
+}
+
+/* ------------------------------------------------------------------ *
+ * Top navigation bar (PCL PanTitle gradient)                         *
+ * ------------------------------------------------------------------ */
+/* PCL FormMain.xaml: PanTitle Height = 48, single blue bar. This is now a
+   StackPane holding a logo/button base, the centred PanTitleSelect pills and
+   the PanTitleInner sub-page layer. */
+.hpcl-topbar {
+    -fx-background-color: -hpcl-topbar-gradient;
+    -fx-min-height: 48;
+    -fx-pref-height: 48;
+    -fx-max-height: 48;
+    -fx-effect: dropshadow(gaussian, rgba(11, 91, 203, 0.30), 8, 0.18, 0, 2);
+}
+
+/* Base layer: ShapeTitleLogo at x=19, window buttons at the right. */
+.hpcl-topbar-base { -fx-padding: 0 12 0 19; }
+.hpcl-topbar-nav { -fx-padding: 0; }
+/* PanTitleInner replaces the logo as the first child of the base HBox. */
+.hpcl-topbar-inner { -fx-padding: 0; }
+
+/* PCL BtnTitleMin / BtnTitleClose: 28x28 MyIconButton, Theme="White",
+   rounded hover surface (alpha 50/255) and a white 0.72-scaled glyph. */
+.hpcl-window-buttons { -fx-alignment: center-right; }
+.hpcl-window-button {
+    -fx-background-color: transparent;
+    -fx-background-radius: 1000;
+    -fx-min-width: 28;
+    -fx-pref-width: 28;
+    -fx-max-width: 28;
+    -fx-min-height: 28;
+    -fx-pref-height: 28;
+    -fx-max-height: 28;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+.hpcl-window-button:hover { -fx-background-color: rgba(255, 255, 255, 0.20); }
+.hpcl-window-button:pressed { -fx-background-color: rgba(255, 255, 255, 0.33); }
+.hpcl-window-icon, .hpcl-window-icon .svg { -fx-fill: white; }
+
+/* PCL LabTitleInner: ColorBrush8 (white), 15px, left inset 47px. */
+.hpcl-title-inner-label {
+    -fx-text-fill: white;
+    -fx-font-size: 15px;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif;
+}
+
+/* PCL ShapeTitleLogo (white stroked, x=19) + LabTitleLogo (17px white bold). */
+.hpcl-title-logo { -fx-padding: 0 6 0 0; }
+.hpcl-title-logo-mark {
+    -fx-background-color: transparent;
+    -fx-border-color: white;
+    -fx-border-width: 2;
+    -fx-border-radius: 5;
+    -fx-min-width: 24; -fx-min-height: 24;
+    -fx-max-width: 24; -fx-max-height: 24;
+}
+.hpcl-title-logo-letter {
+    -fx-text-fill: white;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+.hpcl-title-logo-text {
+    -fx-text-fill: white;
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+}
+
+/* PCL MyRadioButton.xaml: a translucent capsule, CornerRadius 13.5,
+   height 27, 16px white icon + white label. Selected (ColorState.White)
+   animates to a PURE WHITE background with ColorBrush3 blue ink + icon
+   over 120ms (Controls/MyRadioButton.xaml.vb RefreshColor). */
+.hpcl-nav-item {
+    -fx-background-color: rgba(255, 255, 255, 0.02);
+    -fx-background-radius: 13.5;
+    -fx-text-fill: white;
+    -fx-cursor: hand;
+    -fx-padding: 0 12 0 10;
+    -fx-min-height: 27; -fx-pref-height: 27; -fx-max-height: 27;
+    -fx-font-size: 13px;
+    -fx-border-color: transparent;
+}
+
+.hpcl-nav-item:hover { -fx-background-color: rgba(255, 255, 255, 0.20); }
+.hpcl-nav-item:pressed { -fx-background-color: rgba(255, 255, 255, 0.47); }
+
+.hpcl-nav-item-active, .hpcl-nav-item-active:hover {
+    -fx-background-color: #FFFFFF;
+}
+
+.hpcl-nav-label {
+    -fx-text-fill: white;
+    -fx-font-size: 13px;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif;
+}
+
+.hpcl-nav-item-active .hpcl-nav-label {
+    -fx-text-fill: -hpcl-c3;
+    -fx-font-weight: bold;
+}
+
+.hpcl-nav-icon, .hpcl-nav-icon .svg { -fx-fill: white; }
+.hpcl-nav-item-active .hpcl-nav-icon,
+.hpcl-nav-item-active .hpcl-nav-icon .svg { -fx-fill: -hpcl-c3; }
+
+.hpcl-topbar-version {
+    -fx-text-fill: rgba(255, 255, 255, 0.85);
+    -fx-font-size: 12px;
+    -fx-padding: 0 4 0 8;
+    -fx-font-weight: bold;
+}
+
+/* ------------------------------------------------------------------ *
+ * Home content                                                       *
+ * ------------------------------------------------------------------ */
+.hpcl-home {
+    -fx-spacing: 14;
+    -fx-padding: 0;
+}
+
+.hpcl-home-title {
+    -fx-font-size: 32px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hpcl-ink;
+}
+
+.hpcl-home-subtitle {
+    -fx-font-size: 13px;
+    -fx-text-fill: -hpcl-ink-2;
+    -fx-font-weight: bold;
+}
+
+.hpcl-current-version {
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hpcl-c2;
+}
+
+.hpcl-home-hint {
+    -fx-font-size: 12px;
+    -fx-text-fill: -hpcl-ink-2;
+}
+
+.hpcl-quick-row { -fx-spacing: 12; }
+
+.hpcl-quick-card {
+    -fx-background-color: -hpcl-card-bg;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-border-color: rgba(11, 91, 203, 0.12);
+    -fx-border-width: 1;
+    -fx-padding: 14;
+    -fx-spacing: 6;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(52, 61, 74, 0.07), 3, 0.07, 0, 1);
+}
+
+/* PCL MyCard hover: shadow -> ColorObject4 @ 0.4 over 90ms. */
+.hpcl-quick-card:hover {
+    -fx-background-color: -hpcl-c8;
+    -fx-border-color: -hpcl-c4;
+    -fx-translate-y: -2px;
+    -fx-effect: dropshadow(gaussian, rgba(72, 144, 245, 0.40), 6, 0.25, 0, 2);
+}
+
+.hpcl-quick-card .hpcl-quick-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hpcl-c2;
+}
+
+.hpcl-quick-card .hpcl-quick-subtitle {
+    -fx-font-size: 11.5px;
+    -fx-text-fill: -hpcl-ink-2;
+}
+
+.hpcl-quick-icon { -fx-fill: -hpcl-c3; }
+
+/* Section headings used on the PCL home page */
+.hpcl-section-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hpcl-ink-2;
+    -fx-padding: 4 0 2 0;
+}
+
+/* ------------------------------------------------------------------ *
+ * Buttons (PCL MyButton / jfx-button-raised)                         *
+ * ------------------------------------------------------------------ */
+.jfx-button-raised,
+.jfx-button-raised:focused,
+.jfx-button-raised:hover {
+    -fx-background-color: -hpcl-button-gradient;
+    -fx-background-radius: 5;
+    -fx-border-radius: 5;
+    -fx-border-width: 0;
+    -fx-padding: 9 18 9 18;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(11, 91, 203, 0.30), 6, 0.20, 0, 2);
+}
+
+.jfx-button-raised:hover { -fx-background-color: -hpcl-button-gradient-hover; }
+
+.jfx-button-raised, .jfx-button-raised * {
+    -fx-text-fill: white;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+}
+
+.jfx-button-raised .jfx-rippler { -jfx-rippler-fill: rgba(255, 255, 255, 0.45); }
+
+/* PCL MyButton (ColorState.Normal / Highlight): idle is a half-white face
+   with a ColorBrush1 border; hover fills ColorBrush7 and turns the border
+   ColorBrush3 in 100ms, leaving in 200ms (`AnimationColorIn/Out`). */
+.jfx-button-border, .jfx-button-border:focused {
+    -fx-background-color: rgba(255, 255, 255, 0.72);
+    -fx-border-color: rgba(52, 61, 74, 0.55);
+    -fx-border-radius: 5;
+    -fx-border-width: 1px;
+    -fx-padding: 8 14 8 14;
+}
+
+.jfx-button-border, .jfx-button-border * {
+    -fx-text-fill: -hpcl-ink;
+    -fx-font-weight: bold;
+}
+
+.jfx-button-border:hover {
+    -fx-background-color: -hpcl-c7;
+    -fx-border-color: -hpcl-c3;
+}
+
+.jfx-button-border:hover, .jfx-button-border:hover * {
+    -fx-text-fill: -hpcl-c2;
+}
+
+/* ------------------------------------------------------------------ *
+ * Launch bar (PCL bottom big blue button, height 54)                 *
+ * ------------------------------------------------------------------ */
+/* PCL PageLaunchLeft: BtnLaunch Height 54, Margin 20,0 inside the 300px
+   left pane. The bar is now a child of the sidebar, not a window footer. */
+.hpcl-launch-bar-root {
+    -fx-padding: 0 0 2 0;
+    -fx-max-width: infinity;
+}
+
+.launch-pane {
+    -fx-min-height: 54;
+    -fx-max-height: 54;
+    -fx-min-width: 200;
+    -fx-max-width: 10000;
+    -fx-spacing: 0;
+    -fx-alignment: center-right;
+}
+
+.hpcl-about-text { -fx-text-fill: -hpcl-ink-2; -fx-font-size: 12.5px; }
+
+.launch-pane > .jfx-button {
+    -fx-min-height: 54;
+    -fx-max-height: 54;
+    -fx-background-radius: 6;
+    -fx-opacity: 1;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(11, 91, 203, 0.34), 10, 0.22, 0, 3);
+}
+
+.launch-pane > .jfx-button.launch-button,
+.jfx-button.hpcl-launch-button {
+    -fx-max-width: 10000;
+    -fx-background-color: -hpcl-button-gradient;
+    /* PCL2 BtnLaunch is one 54px button with all four corners rounded;
+       HMCL's split arrow button is no longer rendered. */
+    -fx-background-radius: 6;
+    -fx-border-width: 0;
+    -fx-border-color: transparent;
+}
+
+.launch-pane > .jfx-button.launch-button:hover,
+.jfx-button.hpcl-launch-button:hover {
+    -fx-background-color: -hpcl-button-gradient-hover;
+}
+
+.launch-pane > .jfx-button.menu-button,
+.jfx-button.hpcl-launch-menu {
+    -fx-min-width: 48;
+    -fx-max-width: 48;
+    -fx-background-color: -hpcl-c2;
+    -fx-background-radius: 0 6 6 0;
+}
+
+.launch-pane > .jfx-button.menu-button:hover,
+.jfx-button.hpcl-launch-menu:hover { -fx-background-color: -hpcl-c3; }
+
+.launch-pane > .jfx-button > StackPane > .jfx-rippler {
+    -jfx-rippler-fill: rgba(255, 255, 255, 0.45);
+    -jfx-mask-type: CIRCLE;
+    -fx-padding: 0;
+}
+
+.launch-pane > .jfx-button,
+.launch-pane > .jfx-button * {
+    -fx-text-fill: white;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+}
+
+.launch-pane .svg { -fx-fill: white; }
+
+/* PCL PageLaunchLeft.xaml: a 4px two-segment bar. The finished segment is a
+   ColorObject4 -> ColorObject3 gradient; the unfinished one is ColorBrush6
+   at 0.6 opacity. JavaFX grows the finished segment with a left-anchored
+   Scale transform while the game boots. */
+.hpcl-launch-progress-track {
+    -fx-background-color: rgba(213, 230, 253, 0.60);
+    -fx-background-radius: 0 0 6 6;
+}
+
+.hpcl-launch-progress {
+    -fx-background-color: linear-gradient(to right, #4890F5 0%, #1370F3 60%, #1370F3 100%);
+    -fx-background-radius: 0 0 6 6;
+}
+
+/* ------------------------------------------------------------------ *
+ * Misc polish                                                        *
+ * ------------------------------------------------------------------ */
+.bubble {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 6;
+    -fx-effect: dropshadow(gaussian, rgba(11, 91, 203, 0.28), 10, 0.2, 0, 3);
+}
+
+.bubble .label, .bubble .two-line-list-item .title,
+.bubble .two-line-list-item .subtitle {
+    -fx-text-fill: -hpcl-ink;
+}
+
+.hint { -fx-background-radius: 6; -fx-border-radius: 6; }
+
+.scroll-bar .thumb {
+    -fx-fill: -hpcl-c5;
+    -fx-background-color: -hpcl-c5;
+    -fx-arc-width: 4;
+    -fx-arc-height: 4;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-fill: -hpcl-c4;
+    -fx-background-color: -hpcl-c4;
+}
+
+.scroll-bar .track, .scroll-bar .track-background { -fx-background-color: transparent; }
+
+.tooltip {
+    -fx-background-color: #FFFFFF;
+    -fx-text-fill: -hpcl-ink;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif;
+    -fx-font-size: 12px;
+    -fx-effect: dropshadow(gaussian, rgba(52, 61, 74, 0.28), 8, 0.2, 0, 2);
+}
+
+.context-menu {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: -hpcl-divider;
+    -fx-border-width: 1;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-effect: dropshadow(gaussian, rgba(52, 61, 74, 0.22), 10, 0.2, 0, 3);
+}
+
+.context-menu .label { -fx-text-fill: -hpcl-ink; -fx-font-size: 13px; }
+.menu-item:hover > .graphic-container > .label,
+.menu-item:focused > .graphic-container > .label { -fx-text-fill: -hpcl-c2; }
+.menu-item:hover, .menu-item:focused { -fx-background-color: -hpcl-c7; }
+
+code, .monospace { -fx-font-family: "Noto Sans Mono CJK SC", "Consolas", "DejaVu Sans Mono", monospace; }
+
+/* ------------------------------------------------------------------ *
+ * Dialogs & floating layers                                           *
+ * Upstream uses a translucent surface-container-high: the wallpaper   *
+ * and the page underneath showed through and collided with the dialog *
+ * text. PCL dialogs are opaque white cards with a soft blue shadow.   *
+ * ------------------------------------------------------------------ */
+.jfx-dialog-layout,
+.task-executor-dialog-layout {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-border-color: -hpcl-divider;
+    -fx-border-width: 1;
+    -fx-text-fill: -hpcl-ink;
+    -fx-effect: dropshadow(gaussian, rgba(11, 91, 203, 0.30), 16, 0.22, 0, 4);
+}
+
+.jfx-dialog-layout .label,
+.task-executor-dialog-layout .label,
+.jfx-layout-body .label,
+.jfx-layout-body .text,
+.task-executor-dialog-layout .text {
+    -fx-background-color: transparent;
+    -fx-text-fill: -hpcl-ink;
+    -fx-font-size: 13px;
+}
+
+.jfx-layout-heading {
+    -fx-background-color: transparent;
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hpcl-c2;
+}
+
+.dialog-accept { -fx-text-fill: -hpcl-c2; -fx-font-weight: bold; }
+.dialog-cancel { -fx-text-fill: -hpcl-ink-2; }
+
+/* Snackbar / toast */
+.jfx-snackbar-content, .jfx-snackbar-content .label {
+    -fx-background-color: #FFFFFF;
+    -fx-text-fill: -hpcl-ink;
+}
+
+/* ------------------------------------------------------------------ *
+ * PCL2 fidelity pass                                                  *
+ * Sources: Controls/MyHint.xaml(.vb), Controls/MyMsg/MyMsgText.xaml,  *
+ *          Modules/ModMain.vb (HintTick), Controls/MyCheckBox.xaml,   *
+ *          Controls/MyIconButton.xaml, Controls/MyComboBox.vb         *
+ * ------------------------------------------------------------------ */
+
+/* Controls/MyHint.xaml: BorderThickness 3 on the LEFT, CornerRadius 2,
+   padding 12/9, line height 16. Theme colours from MyHint.xaml.vb. */
+.hint {
+    -fx-background-radius: 2;
+    -fx-border-radius: 2;
+    -fx-border-width: 0 0 0 3;
+    -fx-padding: 9 12 9 12;
+}
+.hint.info, .hint.question, .hint.success {
+    -fx-background-color: #d9ecff;
+    -fx-border-color: #1172D4;
+}
+.hint.error {
+    -fx-background-color: #ffdddf;
+    -fx-border-color: #d82929;
+}
+.hint.warning {
+    -fx-background-color: #ffebd7;
+    -fx-border-color: #f57a00;
+}
+.hint.info .label, .hint.info .text,
+.hint.question .label, .hint.question .text,
+.hint.success .label, .hint.success .text {
+    -fx-text-fill: #0F64B8;
+    -fx-fill: #0F64B8;
+}
+.hint.error .label, .hint.error .text {
+    -fx-text-fill: #bf0b0b;
+    -fx-fill: #bf0b0b;
+}
+.hint.warning .label, .hint.warning .text {
+    -fx-text-fill: #d86c00;
+    -fx-fill: #d86c00;
+}
+.hint.info .svg, .hint.question .svg, .hint.success .svg { -fx-fill: #0F64B8; }
+.hint.error .svg { -fx-fill: #bf0b0b; }
+.hint.warning .svg { -fx-fill: #d86c00; }
+
+/* Home-page hint card uses the same Blue theme. */
+.hpcl-hint {
+    -fx-background-color: #d9ecff;
+    -fx-border-color: #1172D4;
+    -fx-border-width: 0 0 0 3;
+    -fx-background-radius: 2;
+    -fx-border-radius: 2;
+}
+.hpcl-hint-text { -fx-text-fill: #0F64B8; -fx-font-size: 12.5px; }
+
+/* Controls/MyMsg/MyMsgText.xaml: PanBorder radius 7, #FBFBFB,
+   BlurRadius 20 / ShadowDepth 4 / Opacity 0.8; PanMain margin 22,22,22,23;
+   LabTitle 23px + a 2px separator; LabCaption 15px #5C5C5C; buttons right. */
+.jfx-dialog-layout,
+.task-executor-dialog-layout {
+    -fx-background-color: #FBFBFB;
+    -fx-background-radius: 7;
+    -fx-border-radius: 7;
+    -fx-border-color: transparent;
+    -fx-border-width: 0;
+    -fx-padding: 22 22 23 22;
+    -fx-effect: dropshadow(gaussian, rgba(11, 91, 203, 0.80), 20, 0.2, 0, 4);
+}
+.jfx-layout-heading {
+    -fx-font-size: 23px;
+    -fx-text-fill: -hpcl-c2;
+    -fx-border-color: transparent transparent -hpcl-c2 transparent;
+    -fx-border-width: 0 0 2 0;
+    -fx-padding: 0 70 9 7;
+}
+.jfx-dialog-layout .jfx-layout-heading .label,
+.task-executor-dialog-layout .jfx-layout-heading .label {
+    -fx-font-size: 23px;
+    -fx-text-fill: -hpcl-c2;
+}
+.jfx-layout-body .label, .jfx-layout-body .text,
+.jfx-dialog-layout .jfx-layout-body .label,
+.task-executor-dialog-layout .text {
+    -fx-font-size: 15px;
+    -fx-text-fill: #5C5C5C;
+    -fx-fill: #5C5C5C;
+}
+.jfx-layout-actions {
+    -fx-alignment: center-right;
+    -fx-spacing: 12;
+    -fx-padding: 0 8 0 150;
+}
+
+/* Modules/ModMain.vb HintTick: bottom-left gradient capsule, radius
+   (0,6,6,0), height 26, white 13px text inset 33px from the left.
+   Colours: Blue 215,37,155,252 -> 215,10,142,252; Green 33,177,33 ->
+   29,160,29; Red 255,53,11 -> 255,43,0 (alpha 215/255 ~ 0.84). */
+.hpcl-toast-layer { -fx-background-color: transparent; }
+.hpcl-toast-card {
+    -fx-background-radius: 0 6 6 0;
+    -fx-background-insets: 0;
+    -fx-effect: dropshadow(gaussian, rgba(11, 91, 203, 0.30), 8, 0.2, 0, 2);
+}
+.hpcl-toast-info {
+    -fx-background-color: linear-gradient(to bottom,
+        rgba(37, 155, 252, 0.84), rgba(10, 142, 252, 0.84));
+}
+.hpcl-toast-success {
+    -fx-background-color: linear-gradient(to bottom,
+        rgba(33, 177, 33, 0.84), rgba(29, 160, 29, 0.84));
+}
+.hpcl-toast-error {
+    -fx-background-color: linear-gradient(to bottom,
+        rgba(255, 53, 11, 0.84), rgba(255, 43, 0, 0.84));
+}
+.hpcl-toast-wash {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 0 6 6 0;
+}
+.hpcl-toast-text {
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 13px;
+    -fx-font-family: "Noto Sans CJK SC", "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", "PingFang SC", sans-serif;
+}
+
+/* Controls/MyCheckBox.xaml: 18x18 box, radius 3, 1.1px border,
+   ColorBrushHalfWhite fill, 13px ColorBrush1 label. */
+.check-box .box {
+    -fx-background-color: rgba(255, 255, 255, 0.72);
+    -fx-border-color: -hpcl-c1;
+    -fx-border-width: 1.1;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-min-width: 18;
+    -fx-min-height: 18;
+    -fx-pref-width: 18;
+    -fx-pref-height: 18;
+    -fx-max-width: 18;
+    -fx-max-height: 18;
+}
+.check-box:selected .mark { -fx-background-color: -hpcl-c2; -fx-fill: -hpcl-c2; }
+.check-box, .check-box .label { -fx-text-fill: -hpcl-ink; -fx-font-size: 13px; }
+
+/* Controls/MyComboBox.vb / MyTextBox: half-white surface, blue-grey text. */
+.combo-box, .text-field, .text-area,
+.jfx-text-field, .jfx-text-area,
+.jfx-combo-box {
+    -fx-background-color: rgba(255, 255, 255, 0.72);
+    -fx-border-color: -hpcl-c5;
+    -fx-border-width: 1;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-text-fill: -hpcl-ink;
+}
+.combo-box .list-cell, .text-field, .text-area,
+.jfx-text-field, .jfx-text-area { -fx-text-fill: -hpcl-ink; }
+
+/* Controls/MyIconButton.xaml: fully rounded translucent surface. */
+.icon-button, .hpcl-icon-button {
+    -fx-background-radius: 1000;
+    -fx-background-color: rgba(255, 255, 255, 0.55);
+}
+
+/* ------------------------------------------------------------------ *
+ * PCL MyLoading pickaxe (Controls/MyLoading.xaml)                     *
+ * ------------------------------------------------------------------ */
+.hpcl-loading { -fx-background-color: transparent; }
+.hpcl-loading-text {
+    -fx-text-fill: -hpcl-c1;
+    -fx-font-size: 16px;
+    -fx-font-family: -hpcl-typeface;
+}
+
+/* ------------------------------------------------------------------ *
+ * PCL PanLaunching (PageLaunchLeft.xaml)                              *
+ * ------------------------------------------------------------------ */
+.hpcl-launching-panel {
+    -fx-background-color: #FFFFFF;
+    -fx-min-width: 300;
+    -fx-pref-width: 300;
+    -fx-max-width: 300;
+}
+.hpcl-launching-title {
+    -fx-text-fill: -hpcl-c3;
+    -fx-font-size: 20px;
+    -fx-font-family: -hpcl-typeface;
+    /* PCL `SkewTransform AngleX="-3"` applied as a Shear transform in Java. */
+}
+.hpcl-launching-name {
+    -fx-text-fill: -hpcl-c3;
+    -fx-font-size: 13.5px;
+    -fx-font-family: -hpcl-typeface;
+}
+/* PCL PanLaunchingInfo: 12.5px muted captions + values. */
+.hpcl-launching-info { -fx-padding: 0; }
+.hpcl-launching-info-caption {
+    -fx-text-fill: -hpcl-ink-muted;
+    -fx-opacity: 0.5;
+    -fx-font-size: 12.5px;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-launching-info-value {
+    -fx-text-fill: -hpcl-ink;
+    -fx-font-size: 12.5px;
+    -fx-font-family: -hpcl-typeface;
+}
+/* PCL PanLaunchingHint: "你知道吗" notched tip card. */
+.hpcl-launching-hint {
+    -fx-background-color: -hpcl-c8;
+    -fx-background-radius: 4;
+    -fx-border-color: -hpcl-c6;
+    -fx-border-radius: 4;
+    -fx-border-width: 1;
+    -fx-padding: 8 11 9 11;
+}
+.hpcl-launching-hint-caption {
+    -fx-text-fill: -hpcl-ink-muted;
+    -fx-font-size: 12px;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-launching-hint-text {
+    -fx-text-fill: -hpcl-ink-2;
+    -fx-font-size: 12.5px;
+    -fx-text-alignment: center;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-launching-bar { -fx-min-height: 4; -fx-max-height: 4; }
+.hpcl-launching-bar-track {
+    -fx-background-color: rgba(213, 230, 253, 0.60);
+    -fx-background-radius: 2;
+    -fx-min-height: 4;
+    -fx-max-height: 4;
+}
+.hpcl-launching-bar-fill {
+    -fx-background-color: linear-gradient(to right, #4890F5 0%, #1370F3 60%, #1370F3 100%);
+    -fx-background-radius: 2;
+    -fx-min-height: 4;
+    -fx-max-height: 4;
+    -fx-min-width: 0;
+}
+.hpcl-launching-cancel {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #C9DCF5;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-text-fill: -hpcl-ink;
+    -fx-font-size: 14px;
+    -fx-font-family: -hpcl-typeface;
+    -fx-min-height: 35;
+    -fx-pref-height: 35;
+    -fx-max-width: infinity;
+    -fx-cursor: hand;
+}
+.hpcl-launching-cancel:hover {
+    -fx-border-color: -hpcl-c4;
+    -fx-text-fill: -hpcl-c3;
+}
+
+/* ------------------------------------------------------------------ *
+ * PCL floating download ball (FormMain.BtnExtraDownload / MyExtraButton)*
+ * A 40px ColorBrush3 disc, a translucent white fill that rises from the
+ * bottom with Progress, and a white glyph. The disc colour is animated in
+ * code (ColorBrush3 -> ColorBrush4 on hover), so no -fx-fill here.       *
+ * ------------------------------------------------------------------ */
+.hpcl-download-ball { -fx-background-color: transparent; -fx-cursor: hand; }
+.hpcl-download-ball-layer { -fx-background-color: transparent; }
+.hpcl-download-ball-glyph, .hpcl-download-ball-glyph .svg { -fx-fill: -hpcl-c8; }
+.hpcl-download-ball-speed {
+    -fx-background-color: rgba(255, 255, 255, 0.94);
+    -fx-background-radius: 12;
+    -fx-border-color: -hpcl-c6;
+    -fx-border-radius: 12;
+    -fx-border-width: 1;
+    -fx-padding: 3 9 3 9;
+    -fx-text-fill: -hpcl-c2;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-font-family: -hpcl-mono-typeface;
+    -fx-effect: dropshadow(gaussian, rgba(11, 91, 203, 0.18), 8, 0.15, 0, 2);
+}
+/* MyExtraButton.Ribble: a soft ring expanding out of the ball. */
+.hpcl-ribble { -fx-fill: -hpcl-c5; }
+
+/* ------------------------------------------------------------------ *
+ * PCL login-type chips (MyRadioButton ColorType="Highlight")          *
+ * ------------------------------------------------------------------ */
+.hpcl-type-badge {
+    -fx-background-radius: 13;
+    -fx-min-height: 27;
+    -fx-pref-height: 27;
+    -fx-max-height: 27;
+    -fx-padding: 0 14 0 12;
+}
+.hpcl-type-badge-active {
+    -fx-background-color: -hpcl-c3;
+}
+.hpcl-type-badge-idle {
+    -fx-background-color: transparent;
+    -fx-border-color: -hpcl-c6;
+    -fx-border-radius: 13;
+    -fx-border-width: 1;
+}
+.hpcl-type-badge .hpcl-type-badge-text {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-type-badge-active .hpcl-type-badge-text { -fx-text-fill: white; }
+.hpcl-type-badge-idle .hpcl-type-badge-text { -fx-text-fill: -hpcl-c3; }
+.hpcl-type-badge-active .hpcl-type-badge-icon { -fx-fill: white; }
+.hpcl-type-badge-idle .hpcl-type-badge-icon { -fx-fill: -hpcl-c3; }
+
+/* ------------------------------------------------------------------ *
+ * PCL PageLaunchLeft account pane                                     *
+ * ------------------------------------------------------------------ */
+.hpcl-account-box { -fx-padding: 6 0 0 0; }
+.hpcl-account-avatar {
+    -fx-background-color: #EAF2FE;
+    -fx-background-radius: 32;
+    -fx-min-width: 64; -fx-min-height: 64;
+    -fx-max-width: 64; -fx-max-height: 64;
+}
+.hpcl-account-name {
+    -fx-text-fill: -hpcl-ink;
+    -fx-font-size: 17px;
+    -fx-font-weight: bold;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-account-type {
+    -fx-text-fill: -hpcl-ink-muted;
+    -fx-font-size: 12px;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-account-login {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #BBD4F2;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-text-fill: -hpcl-c2;
+    -fx-font-size: 14px;
+    -fx-font-family: -hpcl-typeface;
+    -fx-min-height: 33;
+    -fx-pref-height: 33;
+    -fx-max-width: infinity;
+    -fx-cursor: hand;
+}
+.hpcl-account-login:hover { -fx-border-color: -hpcl-c3; -fx-background-color: -hpcl-c8; }
+
+.hpcl-version-select {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #C9DCF5;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-text-fill: -hpcl-ink;
+    -fx-font-size: 14px;
+    -fx-font-family: -hpcl-typeface;
+    -fx-cursor: hand;
+}
+.hpcl-version-select:hover { -fx-border-color: -hpcl-c4; -fx-text-fill: -hpcl-c2; }
+
+.hpcl-sided-link-chevron {
+    -fx-text-fill: #A9BBD2;
+    -fx-font-size: 12px;
+}
+.hpcl-sided-link-text {
+    -fx-text-fill: #8FA3BD;
+    -fx-font-size: 12px;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-sided-link:hover .hpcl-sided-link-text { -fx-text-fill: -hpcl-c3; }
+
+/* ------------------------------------------------------------------ *
+ * PCL PageDownloadLeft: white pane, 36px radio rows, blue active bar   *
+ * ------------------------------------------------------------------ */
+.advanced-list-box { -fx-background-color: #FFFFFF; }
+.advanced-list-box .advanced-list-item {
+    -fx-min-height: 36;
+    -fx-pref-height: 36;
+    -fx-background-radius: 4;
+}
+.advanced-list-box .advanced-list-item > .rippler-container > .container {
+    -fx-background-radius: 4;
+}
+.advanced-list-box .advanced-list-item:hover > .rippler-container > .container {
+    -fx-background-color: #EAF2FE;
+}
+.advanced-list-box .advanced-list-item:selected > .rippler-container > .container {
+    -fx-background-color: #DEECFD;
+    -fx-border-color: transparent transparent transparent #1370F3;
+    -fx-border-width: 0 0 0 3;
+}
+.advanced-list-box .advanced-list-item .title {
+    -fx-text-fill: #1B2738;
+    -fx-font-size: 14px;
+}
+.advanced-list-box .advanced-list-item:selected .title {
+    -fx-text-fill: #0B5BCB;
+    -fx-font-weight: bold;
+}
+.advanced-list-box .advanced-list-item .svg { -fx-fill: #4C607A; }
+.advanced-list-box .advanced-list-item:selected .svg { -fx-fill: #1370F3; }
+/* PCL2 PageDownloadLeft.xaml LabResource: TextBlock Margin="13,20,5,4"
+   Opacity=".6" FontSize="12" — a quiet 12px label, no underline. */
+.advanced-list-box .class-title {
+    -fx-text-fill: -hpcl-ink-muted;
+    -fx-font-size: 12px;
+    -fx-opacity: 0.6;
+    -fx-underline: false;
+    -fx-padding: 20 5 4 13;
+}
+/* HMCL ClassTitle draws a 1px rule under every category; PCL2's LabResource
+   has none. Hide the Rectangle for the PCL-style download sidebar. */
+.advanced-list-box .class-title Rectangle {
+    -fx-fill: transparent;
+    -fx-opacity: 0;
+}
+.advanced-list-box .class-title Text { -fx-fill: -hpcl-ink-muted; }
+
+/* ------------------------------------------------------------------ *
+ * PCL MyResourceItem: white rounded rows in the resource list         *
+ * ------------------------------------------------------------------ */
+.no-horizontal-scrollbar { -fx-background-color: transparent; }
+.no-horizontal-scrollbar .list-cell {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 8 0;
+}
+.no-horizontal-scrollbar .list-cell .card-no-padding {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 5;
+    -fx-effect: dropshadow(gaussian, rgba(11, 91, 203, 0.10), 6, 0.12, 0, 2);
+}
+.no-horizontal-scrollbar .list-cell:hover .card-no-padding { -fx-background-color: #F6FAFF; }
+
+/* ------------------------------------------------------------------ *
+ * PCL MyTextBox / MySearchBox (Controls/MyTextBox.vb)                 *
+ * ------------------------------------------------------------------ */
+.jfx-text-field, .text-field {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #D8E4F5;
+    -fx-border-width: 1;
+    -fx-border-radius: 4;
+    -fx-background-radius: 4;
+    -fx-min-height: 32;
+    -fx-font-size: 13.5px;
+    -fx-text-fill: -hpcl-ink;
+}
+.jfx-text-field:focused, .text-field:focused { -fx-border-color: -hpcl-c4; }
+
+/* PCL MyCheckBox.xaml: an 18px rounded box with a blue tick. */
+.check-box > .box {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #C9DCF5;
+    -fx-border-width: 1;
+    -fx-border-radius: 3;
+    -fx-background-radius: 3;
+    -fx-min-width: 18; -fx-min-height: 18;
+    -fx-max-width: 18; -fx-max-height: 18;
+}
+.check-box:selected > .box {
+    -fx-background-color: -hpcl-c3;
+    -fx-border-color: -hpcl-c3;
+}
+.check-box:selected > .box > .mark { -fx-background-color: white; }
+
+/* ------------------------------------------------------------------ *
+ * PCL home-page account switcher (PageLaunchLeft.PanLogin / PanType)  *
+ * ------------------------------------------------------------------ */
+.hpcl-account-switcher {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 7;
+    -fx-border-radius: 7;
+    -fx-border-color: #DCE8F7;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(11, 91, 203, 0.24), 18, 0.20, 0, 4);
+}
+.hpcl-account-switcher-title {
+    -fx-text-fill: -hpcl-c2;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-account-switcher-separator { -fx-background-color: #E4EDFA; }
+.hpcl-account-switcher-row {
+    -fx-padding: 7 9 7 9;
+    -fx-background-radius: 4;
+    -fx-border-radius: 4;
+    -fx-cursor: hand;
+}
+.hpcl-account-switcher-row-idle { -fx-background-color: transparent; }
+.hpcl-account-switcher-row-idle:hover { -fx-background-color: #EAF2FE; }
+.hpcl-account-switcher-row-active {
+    -fx-background-color: #DEECFD;
+    -fx-border-color: transparent transparent transparent #1370F3;
+    -fx-border-width: 0 0 0 3;
+}
+.hpcl-account-switcher-avatar {
+    -fx-background-color: #EAF2FE;
+    -fx-background-radius: 6;
+    -fx-min-width: 30; -fx-min-height: 30;
+    -fx-max-width: 30; -fx-max-height: 30;
+}
+.hpcl-account-switcher-name {
+    -fx-text-fill: #1B2738;
+    -fx-font-size: 13.5px;
+    -fx-font-weight: bold;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-account-switcher-type {
+    -fx-text-fill: #8FA3BD;
+    -fx-font-size: 11px;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-account-switcher-check {
+    -fx-text-fill: #1370F3;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+.hpcl-account-switcher-action {
+    -fx-padding: 5 8 5 8;
+    -fx-background-radius: 4;
+    -fx-cursor: hand;
+}
+.hpcl-account-switcher-action:hover { -fx-background-color: #EAF2FE; }
+.hpcl-account-switcher-action-mark { -fx-text-fill: #A9BBD2; -fx-font-size: 12px; }
+.hpcl-account-switcher-action-text {
+    -fx-text-fill: #5E7190;
+    -fx-font-size: 12.5px;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-account-switcher-action:hover .hpcl-account-switcher-action-text { -fx-text-fill: -hpcl-c3; }
+.hpcl-account-switcher-empty {
+    -fx-text-fill: #8FA3BD;
+    -fx-font-size: 12.5px;
+    -fx-padding: 8 4 8 4;
+    -fx-font-family: -hpcl-typeface;
+}
+
+/* ------------------------------------------------------------------ *
+ * PCL non-modal download / install task layer                        *
+ * ------------------------------------------------------------------ */
+.hpcl-task-panel-layer { -fx-background-color: transparent; }
+.hpcl-task-panel {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 7;
+    -fx-border-radius: 7;
+    -fx-border-color: #DCE8F7;
+    -fx-border-width: 1;
+    -fx-effect: dropshadow(gaussian, rgba(11, 91, 203, 0.22), 18, 0.20, 0, 4);
+    -fx-min-width: 340;
+}
+.hpcl-task-panel .label { -fx-text-fill: -hpcl-ink; }
+.hpcl-task-panel-failed { -fx-border-color: #F2B8B5; }
+.hpcl-task-panel-failed .label { -fx-text-fill: #8C2F2A; }
+.hpcl-task-close {
+    -fx-background-color: transparent;
+    -fx-background-radius: 4;
+    -fx-min-width: 24; -fx-min-height: 24;
+    -fx-pref-width: 24; -fx-pref-height: 24;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+.hpcl-task-close:hover { -fx-background-color: #EAF2FE; }
+.hpcl-task-close-icon { -fx-fill: #7C8CA5; }
+.hpcl-task-close:hover .hpcl-task-close-icon { -fx-fill: -hpcl-c3; }
+.hpcl-task-hint {
+    -fx-text-fill: -hpcl-ink-muted;
+    -fx-font-size: 12px;
+    -fx-padding: 2 0 6 0;
+    -fx-font-family: -hpcl-typeface;
+}
+
+/* ------------------------------------------------------------------ *
+ * PCL TaskManager page: PageSpeedLeft (200px stats) + PageSpeedRight   *
+ * (PanMain card flow, one MyCard per LoaderTaskbar entry)              *
+ * ------------------------------------------------------------------ */
+.hpcl-download-task-page { -fx-background-color: transparent; }
+.hpcl-task-stats {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent -hpcl-divider transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-spacing: 4;
+}
+.hpcl-task-stat-title {
+    -fx-text-fill: -hpcl-c3;
+    -fx-font-size: 14px;
+    -fx-font-family: -hpcl-typeface;
+    -fx-padding: 0 0 2 0;
+}
+/* PCL "Split": 2px line fading into the background at both ends. */
+.hpcl-task-stat-split {
+    -fx-background-color: linear-gradient(to right,
+        rgba(222, 236, 253, 0) 0%, -hpcl-c3 2%, -hpcl-c3 98%, rgba(222, 236, 253, 0) 100%);
+}
+.hpcl-task-stat-value {
+    -fx-text-fill: -hpcl-ink;
+    -fx-font-size: 20px;
+    -fx-font-family: -hpcl-typeface;
+    -fx-padding: 2 0 0 0;
+}
+.hpcl-task-content { -fx-background-color: transparent; }
+.hpcl-task-scroll { -fx-background-color: transparent; -fx-padding: 0; }
+.hpcl-task-scroll > .viewport { -fx-background-color: transparent; }
+.hpcl-task-card-flow { -fx-background-color: transparent; -fx-max-width: 820; }
+.hpcl-task-card { -fx-spacing: 6; -fx-padding: 12 15 13 15; }
+.hpcl-task-card-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hpcl-c1;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-task-card-percent {
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hpcl-c3;
+    -fx-font-family: -hpcl-mono-typeface;
+}
+.hpcl-task-card-cancel {
+    -fx-background-color: transparent;
+    -fx-background-radius: 4;
+    -fx-min-width: 22; -fx-min-height: 22;
+    -fx-pref-width: 22; -fx-pref-height: 22;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+.hpcl-task-card-cancel:hover { -fx-background-color: #FDEAEA; }
+.hpcl-task-card-cancel-icon, .hpcl-task-card-cancel-icon .svg { -fx-fill: #7C8CA5; }
+.hpcl-task-card-cancel:hover .hpcl-task-card-cancel-icon,
+.hpcl-task-card-cancel:hover .hpcl-task-card-cancel-icon .svg { -fx-fill: #D1483F; }
+.hpcl-task-card-track {
+    -fx-background-color: -hpcl-c7;
+    -fx-background-radius: 2;
+    -fx-min-height: 4; -fx-pref-height: 4; -fx-max-height: 4;
+    -fx-padding: 0;
+}
+.hpcl-task-card-fill { -fx-fill: linear-gradient(to right, -hpcl-c2, -hpcl-c4); }
+.hpcl-task-card-failed { -fx-border-color: #F2B8B5; }
+.hpcl-task-card-done { -fx-opacity: 0.82; }
+.hpcl-task-card-error {
+    -fx-text-fill: #8C2F2A;
+    -fx-font-size: 12px;
+    -fx-background-color: #FDF0EF;
+    -fx-background-radius: 4;
+    -fx-padding: 8 10 8 10;
+    -fx-cursor: hand;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-task-rows { -fx-spacing: 0; -fx-padding: 4 0 0 0; }
+.hpcl-task-row { -fx-spacing: 0; }
+.hpcl-task-glyph-box { -fx-padding: 0 0 0 2; }
+.hpcl-task-glyph-waiting {
+    -fx-text-fill: -hpcl-c4;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-task-glyph-running {
+    -fx-text-fill: -hpcl-c3;
+    -fx-font-size: 12px;
+    -fx-font-weight: bold;
+    -fx-font-family: -hpcl-mono-typeface;
+}
+.hpcl-task-glyph-done, .hpcl-task-glyph-done .svg { -fx-fill: #2EA36B; }
+.hpcl-task-glyph-failed, .hpcl-task-glyph-failed .svg { -fx-fill: #D1483F; }
+.hpcl-task-row-name {
+    -fx-text-fill: -hpcl-ink-2;
+    -fx-font-size: 13px;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-task-row-summary {
+    -fx-text-fill: -hpcl-ink-muted;
+    -fx-font-size: 12px;
+    -fx-padding: 4 0 0 52;
+    -fx-font-family: -hpcl-typeface;
+}
+/* Empty state: PCL would auto-return home, HPCL keeps an explicit card. */
+.hpcl-task-empty {
+    -fx-spacing: 10;
+    -fx-max-width: 460;
+    -fx-alignment: center;
+}
+.hpcl-task-empty-icon, .hpcl-task-empty-icon .svg { -fx-fill: -hpcl-c5; }
+.hpcl-task-empty-title {
+    -fx-text-fill: -hpcl-ink;
+    -fx-font-size: 16px;
+    -fx-font-weight: bold;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-task-empty-hint {
+    -fx-text-fill: -hpcl-ink-muted;
+    -fx-font-size: 12px;
+    -fx-text-alignment: center;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-task-empty-button {
+    -fx-background-color: -hpcl-button-gradient;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 13px;
+    -fx-font-weight: bold;
+    -fx-background-radius: 5;
+    -fx-padding: 7 18 7 18;
+    -fx-cursor: hand;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-task-empty-button:hover { -fx-background-color: -hpcl-button-gradient-hover; }
+
+/* ================================================================== *
+ * PCL2 title-bar theme texture (FormMain.xaml `ImgTitle`)              *
+ * The theme strips are 1200x80, near-transparent overlays drawn with    *
+ * Stretch=UniformToFill above PanTitle's blue gradient.                 *
+ * ================================================================== */
+.hpcl-topbar-texture {
+    -fx-background-image: url("/assets/img/pcl/title-texture.png");
+    -fx-background-size: cover;
+    -fx-background-position: center;
+    -fx-background-repeat: no-repeat;
+    -fx-opacity: 0.55;
+}
+
+/* ================================================================== *
+ * PCL2 page loader card (MyPageRight.PageLoaderInit / PanLoad)         *
+ * ================================================================== */
+.hpcl-page-loader { -fx-background-color: transparent; }
+.hpcl-page-loader-card {
+    -fx-background-color: rgba(255, 255, 255, 0.97);
+    -fx-effect: dropshadow(gaussian, rgba(52, 61, 74, 0.10), 10, 0.12, 0, 3);
+    /* Override .hpcl-flow-card's -fx-max-width: infinity so the loader card
+       stays a compact centred card instead of stretching to the pane width. */
+    -fx-min-width: 220;
+    -fx-pref-width: 240;
+    -fx-max-width: 280;
+}
+/* MyLoading foreground is ColorBrush3 (theme blue). */
+.hpcl-loading-text { -fx-text-fill: -hpcl-c3; -fx-font-size: 16px; -fx-font-family: -hpcl-typeface; }
+.hpcl-loading { -fx-background-color: transparent; -fx-cursor: hand; }
+
+/* ================================================================== *
+ * PCL2 "More" hub pages (PageOtherLeft / PageSelectRight style)        *
+ * ================================================================== */
+.hpcl-hub-page { -fx-background-color: transparent; }
+.hpcl-hub-sidebar {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent -hpcl-divider transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 12 8 12 8;
+    -fx-spacing: 2;
+    -fx-min-width: 200;
+    -fx-pref-width: 200;
+    -fx-max-width: 200;
+}
+.hpcl-hub-nav-item {
+    -fx-background-color: transparent;
+    -fx-background-radius: 5;
+    -fx-padding: 0 10 0 10;
+    -fx-min-height: 36;
+    -fx-pref-height: 36;
+    -fx-max-height: 36;
+    -fx-cursor: hand;
+    -fx-alignment: center-left;
+}
+.hpcl-hub-nav-item:hover { -fx-background-color: -hpcl-c8; }
+.hpcl-hub-nav-item.hpcl-hub-nav-active {
+    -fx-background-color: -hpcl-c6;
+    -fx-border-color: transparent transparent transparent -hpcl-c3;
+    -fx-border-width: 0 0 0 3;
+}
+.hpcl-hub-nav-item .svg, .hpcl-hub-nav-item .svg-container .svg { -fx-fill: -hpcl-c3; }
+.hpcl-hub-nav-item .hpcl-hub-nav-text {
+    -fx-text-fill: -hpcl-ink;
+    -fx-font-size: 13.5px;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-hub-nav-item.hpcl-hub-nav-active .hpcl-hub-nav-text {
+    -fx-text-fill: -hpcl-c2;
+    -fx-font-weight: bold;
+}
+.hpcl-hub-section-label {
+    -fx-text-fill: -hpcl-ink-muted;
+    -fx-font-size: 12px;
+    -fx-opacity: 0.6;
+    -fx-padding: 14 0 6 12;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-hub-scroll { -fx-background-color: transparent; -fx-padding: 0; -fx-fit-to-width: true; }
+.hpcl-hub-scroll > .viewport { -fx-background-color: transparent; }
+.hpcl-hub-flow {
+    -fx-padding: 25 25 10 25;
+    -fx-spacing: 15;
+    -fx-max-width: 820;
+    -fx-background-color: transparent;
+}
+.hpcl-hub-card-title {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hpcl-c1;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-hub-text {
+    -fx-font-size: 13px;
+    -fx-text-fill: -hpcl-ink-2;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-hub-muted {
+    -fx-font-size: 12px;
+    -fx-text-fill: -hpcl-ink-muted;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-hub-link {
+    -fx-text-fill: -hpcl-c2;
+    -fx-font-size: 13px;
+    -fx-underline: true;
+    -fx-cursor: hand;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-hub-badge {
+    -fx-background-color: -hpcl-c6;
+    -fx-text-fill: -hpcl-c2;
+    -fx-background-radius: 10;
+    -fx-padding: 2 9 2 9;
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-hub-stat-value {
+    -fx-font-size: 20px;
+    -fx-text-fill: -hpcl-c2;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-hub-divider {
+    -fx-background-color: -hpcl-c6;
+    -fx-min-height: 2;
+    -fx-max-height: 2;
+}
+.hpcl-hub-skin-frame {
+    -fx-background-color: -hpcl-c8;
+    -fx-background-radius: 6;
+    -fx-border-color: -hpcl-c6;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+}
+.hpcl-hub-tip-refresh {
+    -fx-background-color: transparent;
+    -fx-background-radius: 4;
+    -fx-min-width: 24; -fx-pref-width: 24; -fx-max-width: 24;
+    -fx-min-height: 24; -fx-pref-height: 24; -fx-max-height: 24;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+.hpcl-hub-tip-refresh:hover { -fx-background-color: -hpcl-c8; }
+.hpcl-hub-tip-refresh-icon, .hpcl-hub-tip-refresh-icon .svg { -fx-fill: -hpcl-c3; }
+
+/* PCL2 PageOtherHelp.xaml MySearchBox + expandable help rows */
+.hpcl-hub-search {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 5;
+    -fx-border-color: -hpcl-divider;
+    -fx-border-radius: 5;
+    -fx-border-width: 1;
+    -fx-padding: 7 10 7 10;
+    -fx-font-size: 13px;
+    -fx-font-family: -hpcl-typeface;
+    -fx-text-fill: -hpcl-ink;
+    -fx-prompt-text-fill: -hpcl-ink-muted;
+}
+.hpcl-hub-search:focused { -fx-border-color: -hpcl-c3; }
+.hpcl-hub-search-hint {
+    -fx-text-fill: -hpcl-ink-muted;
+    -fx-font-size: 13px;
+    -fx-font-family: -hpcl-typeface;
+}
+.hpcl-hub-help-list { -fx-padding: 4 0 0 0; }
+.hpcl-hub-answer {
+    -fx-padding: 2 8 10 42;
+    -fx-text-fill: -hpcl-ink-2;
+    -fx-font-size: 12.5px;
+    -fx-font-family: -hpcl-typeface;
+}
+
+/* PCL2 PageSelectRight version cards */
+.hpcl-version-card { -fx-cursor: hand; }
+.hpcl-version-icon-box {
+    -fx-background-color: -hpcl-c8;
+    -fx-background-radius: 6;
+    -fx-min-width: 40; -fx-pref-width: 40; -fx-max-width: 40;
+    -fx-min-height: 40; -fx-pref-height: 40; -fx-max-height: 40;
+}
+.hpcl-version-icon, .hpcl-version-icon .svg { -fx-fill: -hpcl-c3; }
+.hpcl-version-name {
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+    -fx-text-fill: -hpcl-ink;
+    -fx-font-family: -hpcl-typeface;
+}
+
+/* ================================================================== *
+ * PCL2 game-launch progress page (PageLaunchLeft + PageSpeedRight)    *
+ * ================================================================== */
+.hpcl-launch-progress-page { -fx-background-color: transparent; }
+.hpcl-launch-progress-page .hpcl-launching-panel {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: transparent -hpcl-divider transparent transparent;
+    -fx-border-width: 0 1 0 0;
+}
+.hpcl-launch-scroll {
+    -fx-background-color: transparent;
+    -fx-padding: 0;
+    -fx-fit-to-width: true;
+}
+.hpcl-launch-scroll > .viewport { -fx-background-color: transparent; }
+.hpcl-launch-flow {
+    -fx-padding: 25 25 10 25;
+    -fx-spacing: 15;
+    -fx-max-width: 820;
+    -fx-background-color: transparent;
+}
+.hpcl-launch-card { -fx-spacing: 6; -fx-padding: 12 15 13 15; }
+.hpcl-launch-card-done { -fx-opacity: 0.9; -fx-border-color: #BFE6CF; }
+.hpcl-launch-card-failed { -fx-border-color: #F2B8B5; }
+/* Launch page progress strip: -fx-fill for a Rectangle (not -fx-background-color). */
+.hpcl-launch-progress-fill {
+    -fx-fill: linear-gradient(to right, #4890F5 0%, #1370F3 60%, #1370F3 100%);
+}
+
+
+/* ================================================================== *
+ * PCL2 icon / UI audit round 5                                       *
+ * ================================================================== */
+/* PageLaunchLeft BtnLaunch: PCL2 Padding 30,0,30,15 keeps the title
+   slightly above centre and pins LabVersion (11px grey) near the bottom. */
+.launch-pane > .jfx-button .hpcl-launch-graphic { -fx-padding: 0 0 6 0; }
+.launch-pane > .jfx-button .hpcl-launch-title {
+    -fx-font-size: 17px; -fx-font-weight: bold; -fx-text-fill: white;
+}
+.launch-pane > .jfx-button .hpcl-launch-version {
+    -fx-font-size: 11px; -fx-font-weight: normal;
+    -fx-text-fill: rgba(255, 255, 255, 0.72);
+}
+/* MyHint CanClose=True: a small white-tinted ✕ capsule at the right. */
+.hpcl-hint-close {
+    -fx-background-color: transparent;
+    -fx-background-radius: 3;
+    -fx-min-width: 20; -fx-pref-width: 20; -fx-max-width: 20;
+    -fx-min-height: 20; -fx-pref-height: 20; -fx-max-height: 20;
+    -fx-padding: 0;
+    -fx-cursor: hand;
+}
+.hpcl-hint-close:hover { -fx-background-color: rgba(17, 114, 212, 0.14); }
+.hpcl-hint-close-icon, .hpcl-hint-close-icon .svg { -fx-fill: #0F64B8; }
+
+/* PCL2 LabResource plain label (no HMCL 1px rule). */
+.hpcl-pcl-category {
+    -fx-text-fill: -hpcl-ink-muted;
+    -fx-font-size: 12px;
+    -fx-opacity: 0.6;
+    -fx-padding: 20 5 4 13;
+    -fx-font-family: -hpcl-typeface;
+}
+
+
+/* ================================================================== *
+ * PCL2 PageDownloadInstall (installer / choose Forge-Fabric page)    *
+ * ================================================================== */
+/* PanSelect: full-width MyCard rows stacked vertically. */
+.hpcl-install-page { -fx-background-color: transparent; }
+.hpcl-install-list { -fx-background-color: transparent; }
+.hpcl-install-list > .installer-item-wrapper {
+    -fx-background-color: white;
+    -fx-background-radius: 5;
+    -fx-effect: dropshadow(gaussian, rgba(30, 66, 120, 0.10), 6, 0.12, 0, 1);
+}
+.hpcl-install-name-card { -fx-background-radius: 5; }
+.hpcl-install-name-caption {
+    -fx-text-fill: -hpcl-ink;
+    -fx-font-size: 14px;
+    -fx-font-weight: bold;
+}
+/* BtnStart: centred blue pill with a download glyph. */
+.jfx-button.hpcl-download-start-button {
+    -fx-background-color: -hpcl-button-gradient;
+    -fx-background-radius: 22;
+    -fx-text-fill: white;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-cursor: hand;
+    -fx-effect: dropshadow(gaussian, rgba(11, 91, 203, 0.34), 10, 0.22, 0, 3);
+}
+.jfx-button.hpcl-download-start-button:hover {
+    -fx-background-color: -hpcl-button-gradient-hover;
+}
+.jfx-button.hpcl-download-start-button .svg { -fx-fill: white; }
+.jfx-button.hpcl-download-start-button:disabled {
+    -fx-background-color: #A9C6EE;
+    -fx-effect: null;
+    -fx-opacity: 0.7;
+}
