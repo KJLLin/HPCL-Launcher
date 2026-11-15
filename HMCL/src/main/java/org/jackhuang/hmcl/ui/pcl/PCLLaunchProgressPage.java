@@ -1,9 +1,10 @@
 /*
+ * Hello Minecraft! Launcher
  * Copyright (C) 2021  huangyuhui <huanghongxun2008@126.com> and contributors
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3 of the License, or
+ * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
  *
  * This program is distributed in the hope that it will be useful,
@@ -81,10 +82,15 @@ public final class PCLLaunchProgressPage extends BorderPane implements Decorator
         private Task<?> source;
 
         public String getName() { return name.get(); }
+
         public StringProperty nameProperty() { return name; }
+
         public double getProgress() { return progress.get(); }
+
         public DoubleProperty progressProperty() { return progress; }
+
         public StepState getState() { return state.get(); }
+
         public ObjectProperty<StepState> stateProperty() { return state; }
     }
 

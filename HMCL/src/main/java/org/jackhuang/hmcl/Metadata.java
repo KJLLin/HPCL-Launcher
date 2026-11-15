@@ -50,6 +50,10 @@ public final class Metadata {
     public static final int MINIMUM_SUPPORTED_JAVA_VERSION = 17;
     public static final int RECOMMENDED_JAVA_VERSION = 21;
 
+    /// HPCL's own source repository and release page (shown on the About pages).
+    public static final String REPOSITORY_URL = "https://github.com/KJLLin/HPCL-Launcher";
+    public static final String REPOSITORY_RELEASES_URL = REPOSITORY_URL + "/releases";
+
     public static final String PUBLISH_URL = "https://hmcl.huangyuhui.net";
     public static final String DOWNLOAD_URL = PUBLISH_URL + "/download";
     public static final String HMCL_UPDATE_URL = System.getProperty("hmcl.update_source.override", PUBLISH_URL + "/api/update_link");

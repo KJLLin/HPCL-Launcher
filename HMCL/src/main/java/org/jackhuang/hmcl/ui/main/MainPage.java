@@ -18,10 +18,8 @@
 package org.jackhuang.hmcl.ui.main;
 
 import com.jfoenix.controls.JFXButton;
-import com.jfoenix.controls.JFXPopup;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
-import javafx.animation.RotateTransition;
 import javafx.animation.Timeline;
 import javafx.beans.property.*;
 import javafx.collections.FXCollections;
@@ -37,7 +35,6 @@ import javafx.scene.control.Tooltip;
 import javafx.scene.image.ImageView;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
-import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.StackPane;
@@ -65,7 +62,6 @@ import org.jackhuang.hmcl.ui.pcl.PCLCollapsibleCard;
 import org.jackhuang.hmcl.ui.pcl.PCLLoading;
 import org.jackhuang.hmcl.ui.pcl.PCLScrollViewer;
 import org.jackhuang.hmcl.ui.pcl.PCLTheme;
-import org.jackhuang.hmcl.ui.versions.GameListPopupMenu;
 import org.jackhuang.hmcl.ui.versions.Versions;
 import org.jackhuang.hmcl.upgrade.RemoteVersion;
 import org.jackhuang.hmcl.upgrade.UpdateChecker;
@@ -81,7 +77,6 @@ import java.io.IOException;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.function.Consumer;
@@ -363,6 +358,8 @@ public final class MainPage extends StackPane implements DecoratorPage {
         HBox aboutLinks = new HBox(18);
         aboutLinks.setAlignment(Pos.CENTER_LEFT);
         aboutLinks.getChildren().setAll(
+                PCLTheme.createSidedLink(i18n("hpcl.about.repository"),
+                        () -> FXUtils.openLink(Metadata.REPOSITORY_URL)),
                 PCLTheme.createSidedLink(i18n("about.open_source"),
                         () -> FXUtils.openLink(Metadata.EULA_URL)),
                 PCLTheme.createSidedLink(i18n("help"),

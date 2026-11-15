@@ -20,10 +20,11 @@
 - 页面切换动画：`InBack / OutBack / OutFluent / OutElastic / InFluent` 等缓动按 `ModAnimation.vb` 的时长与曲线实现；按钮 0.955 按压缩放、列表项选中动效、提示条 `AniDispose` 收缩淡出、"你知道吗" 预设卡片
 - 左栏入场 stagger 动画（`MyPageLeft.TriggerShowAnimation`），在下载 / 设置 / 联机 / 更多等页面统一播放
 - 启动器开场动画：`Angle -4° + Y 60 + 淡入`，按 250 / 600 / 500ms 与 100ms 延迟归位
-- 顶栏为白色描边 `H` 徽标 + 纯文字 `HPCL` 字标（17px 粗体），栏高 48px
+- 顶栏为纯文字 `HPCL` 字标（17px 白色粗体），栏高 48px；五个胶囊标签居中
 - 五个标签文案统一为 2 字（新增 `hpcl.nav.launch` 键，9 个语言包全部补齐），首项显示「启动」而非「启动游戏」
 - 启动按钮为 PCL2 的固定双行槽：17px 主标题 + 11px 版本号贴底；无可用版本时按 `RefreshButtonsUI` Case 2 显示「下载游戏 / 未找到可用的游戏版本」
 - 右栏含 PCL2 固定「启动日志」卡片，接真实启动事件（时间戳 + 最近 7 行，Consolas 等宽字体），不是假日志
+- 主页「关于」卡片、更多 → 关于与鸣谢、完整关于页三处均提供 [HPCL 项目仓库](https://github.com/KJLLin/HPCL-Launcher) 链接
 - 弹窗统一为 PCL2 样式：协议授权 / 协议更新 / 消息 / 警告（红色标题与遮罩）/ 输入共五种，2px 标题分隔线 + 描边按钮 + 倾斜回弹进出场
 
 ### 动效与操作手感

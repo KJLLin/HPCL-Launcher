@@ -94,11 +94,17 @@ public final class PCLDownloadCenter {
         private Task<?> source;
 
         public String getName() { return name.get(); }
+
         public StringProperty nameProperty() { return name; }
+
         public double getProgress() { return progress.get(); }
+
         public DoubleProperty progressProperty() { return progress; }
+
         public Status getStatus() { return status.get(); }
+
         public ObjectProperty<Status> statusProperty() { return status; }
+
         public ReadOnlyObjectProperty<Status> readOnlyStatusProperty() { return status; }
 
         void bind(Task<?> task) {
@@ -150,13 +156,21 @@ public final class PCLDownloadCenter {
         }
 
         public String getTitle() { return title.get(); }
+
         public ReadOnlyStringProperty titleProperty() { return title.getReadOnlyProperty(); }
+
         public double getProgress() { return progress.get(); }
+
         public ReadOnlyDoubleProperty progressProperty() { return progress.getReadOnlyProperty(); }
+
         public Status getStatus() { return status.get(); }
+
         public ReadOnlyObjectProperty<Status> statusProperty() { return status.getReadOnlyProperty(); }
+
         public String getError() { return error.get(); }
+
         public ReadOnlyStringProperty errorProperty() { return error.getReadOnlyProperty(); }
+
         public ObservableList<SubTask> getSubtasks() { return subtasks; }
 
         public boolean isActive() {
@@ -169,11 +183,13 @@ public final class PCLDownloadCenter {
         }
 
         public void setTitle(String value) { title.set(value == null ? "" : value); }
+
         public void cancel() {
             if (cancelAction != null) cancelAction.run();
         }
 
         void setStatus(Status value) { status.set(value); }
+
         void setError(String value) { error.set(value == null ? "" : value); }
 
         /// PCL2 `LoaderTaskbarProgressGet`: average of the visible rows, but an
@@ -295,14 +311,23 @@ public final class PCLDownloadCenter {
     public ObservableList<DownloadTask> getTasks() { return tasks; }
 
     public double getSmoothedProgress() { return smoothedProgress.get(); }
+
     public ReadOnlyDoubleProperty smoothedProgressProperty() { return smoothedProgress.getReadOnlyProperty(); }
+
     public long getSpeed() { return speed.get(); }
+
     public ReadOnlyLongProperty speedProperty() { return speed.getReadOnlyProperty(); }
+
     public int getFileRemain() { return fileRemain.get(); }
+
     public ReadOnlyIntegerProperty fileRemainProperty() { return fileRemain.getReadOnlyProperty(); }
+
     public int getThreadCount() { return threadCount.get(); }
+
     public ReadOnlyIntegerProperty threadCountProperty() { return threadCount.getReadOnlyProperty(); }
+
     public boolean isActive() { return active.get(); }
+
     public ReadOnlyBooleanProperty activeProperty() { return active.getReadOnlyProperty(); }
 
     /// PCL2 `NetTaskThreadLimit` is the download executor's concurrency.

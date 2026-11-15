@@ -65,7 +65,14 @@ public final class AboutPage extends SpinnerPane {
             upstream.setTitle(i18n("about.hpcl.upstream"));
             upstream.setSubtitle(i18n("about.hpcl.upstream.statement"));
 
-            about.getContent().setAll(launcher, upstream);
+            // HPCL's own repository: source, issues and release downloads.
+            var repository = LineButton.createExternalLinkButton(Metadata.REPOSITORY_URL);
+            repository.setLargeTitle(true);
+            repository.setLeading(FXUtils.newBuiltinImage("/assets/img/github.png"));
+            repository.setTitle(i18n("hpcl.about.repository"));
+            repository.setSubtitle(i18n("hpcl.about.repository.statement"));
+
+            about.getContent().setAll(launcher, upstream, repository);
         }
 
         ComponentList deps = loadIconedTwoLineList("/assets/about/deps.json");

@@ -301,6 +301,7 @@ public final class PCLHubPage extends BorderPane implements DecoratorPage {
                         + "，界面与动画按 PCL 开源实现复刻。", "hpcl-hub-text"),
                 statRow("当前版本", Metadata.VERSION),
                 statRow("构建通道", Metadata.BUILD_CHANNEL),
+                link(I18n.i18n("hpcl.about.repository"), Metadata.REPOSITORY_URL),
                 link("开源许可 · GPLv3", Metadata.EULA_URL)));
         out.add(card("致谢",
                 text("感谢 HMCL 与 PCL 开源社区提供的实现参考。本启动器仅复用其设计参数，代码为独立实现。", "hpcl-hub-text"),

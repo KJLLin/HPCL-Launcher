@@ -17,7 +17,6 @@
  */
 package org.jackhuang.hmcl.ui.decorator;
 
-import com.jfoenix.controls.JFXButton;
 import javafx.animation.Interpolator;
 import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
