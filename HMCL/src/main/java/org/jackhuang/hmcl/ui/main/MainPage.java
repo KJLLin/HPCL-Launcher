@@ -379,8 +379,10 @@ public final class MainPage extends StackPane implements DecoratorPage {
         tipIcon.getStyleClass().add("hpcl-hub-tip-refresh-icon");
         tipRefresh.setGraphic(tipIcon);
         tipRefresh.setOnAction(e -> {
-            tipText.setText(randomLaunchHint());
-            PCLTheme.playTextAppear(tipText, tipText.getText());
+            // PCL2 `MyTextButton`: fade the old tip out, swap, fade back in.
+            // The old code called setText() first, so `playTextAppear`
+            // re-revealed text that was already fully displayed.
+            PCLTheme.playTextSwap(tipText, randomLaunchHint());
         });
         PCLCollapsibleCard tipCard = new PCLCollapsibleCard(i18n("hpcl.home.tip"), tipText);
         tipCard.setTitleAccessory(tipRefresh);
@@ -798,6 +800,14 @@ public final class MainPage extends StackPane implements DecoratorPage {
         } else {
             updatePane.setVisible(show);
         }
+    }
+
+    /// PCL2 `FormMain.xaml.vb:866`: Enter on the launch page starts the game.
+    /// Keeps the same no-version fallback as the launch button and the quick
+    /// entry, so the shortcut never silently does nothing.
+    public void launchFromShortcut() {
+        if (getCurrentGame() == null) launchNoGame();
+        else launch();
     }
 
     private void launch() {

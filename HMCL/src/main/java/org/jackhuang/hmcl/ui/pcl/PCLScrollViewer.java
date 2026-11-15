@@ -80,11 +80,24 @@ public final class PCLScrollViewer {
     private static final boolean DEBUG = Boolean.getBoolean("hpcl.scroll.debug");
 
     private static final BooleanProperty scrolled = new SimpleBooleanProperty(false);
-    private static @Nullable ScrollPane active = null;
-    private static @Nullable Node pendingPage;
+    /// Static references must not keep a navigated-away page (and its whole
+    /// Scene graph) alive. Weak references let the page be collected while
+    /// still allowing `sceneWheel` to resolve the current pane.
+    private static @Nullable WeakReference<ScrollPane> activeRef;
+    private static @Nullable WeakReference<Node> pendingPageRef;
     private static final List<WeakReference<ScrollPane>> installed = new ArrayList<>();
 
     private PCLScrollViewer() {
+    }
+
+    private static @Nullable ScrollPane getActive() {
+        ScrollPane pane = activeRef == null ? null : activeRef.get();
+        if (pane == null) activeRef = null;
+        return pane;
+    }
+
+    private static void setActive(@Nullable ScrollPane pane) {
+        activeRef = pane == null ? null : new WeakReference<>(pane);
     }
 
     /// Whether the active PCL2-style scroll pane is scrolled away from the top.
@@ -144,11 +157,11 @@ public final class PCLScrollViewer {
                 n = n.getParent();
             }
             System.err.println("[PCLScroll] sceneWheel dy=" + event.getDeltaY()
-                    + " active=" + (active != null)
-                    + " belongs=" + (active != null && belongsTo(active, event))
+                    + " active=" + (getActive() != null)
+                    + " belongs=" + (getActive() != null && belongsTo(getActive(), event))
                     + " chain=" + chain);
         }
-        ScrollPane pane = active;
+        ScrollPane pane = getActive();
         if (pane == null || !belongsTo(pane, event)) {
             pane = null;
             for (WeakReference<ScrollPane> ref : installed) {
@@ -194,12 +207,12 @@ public final class PCLScrollViewer {
     /// PCL2 refreshes `BtnExtraBack` on `IsVisibleChanged`, which happens on
     /// every page change; the navigator calls this from `onNavigated`.
     public static void activate(@Nullable Node page) {
-        pendingPage = page;
+        pendingPageRef = page == null ? null : new WeakReference<>(page);
         ScrollPane found = find(page, 0, true);
         if (found == null) found = find(page, 0, false);
         if (DEBUG) System.err.println("[PCLScroll] activate " + (page == null ? "null" : page.getClass().getSimpleName())
                 + " found=" + (found != null));
-        active = found;
+        setActive(found);
         Controller controller = found == null ? null : controllerOf(found);
         if (controller != null) controller.syncFromVvalue();
         refresh();
@@ -210,11 +223,12 @@ public final class PCLScrollViewer {
         if (found == null && page != null) {
             PauseTransition retry = new PauseTransition(Duration.millis(450));
             retry.setOnFinished(e -> {
-                if (pendingPage != page) return;
+                Node pending = pendingPageRef == null ? null : pendingPageRef.get();
+                if (pending != page) return;
                 ScrollPane late = find(page, 0, true);
                 if (late == null) late = find(page, 0, false);
                 if (late == null) return;
-                active = late;
+                setActive(late);
                 Controller lateController = controllerOf(late);
                 if (lateController != null) lateController.syncFromVvalue();
                 refresh();
@@ -226,8 +240,9 @@ public final class PCLScrollViewer {
 
     /// Clears the active pane (e.g. a page with no scrollable card flow).
     public static void deactivate() {
-        active = null;
-        pendingPage = null;
+        activeRef = null;
+        pendingPageRef = null;
+        installed.clear();
         refresh();
     }
 
@@ -235,7 +250,7 @@ public final class PCLScrollViewer {
     /// 300ms OutFluent(6) curve as wheel scrolling, so returning to the top
     /// matches the feel of scrolling down.
     public static void scrollToHome() {
-        ScrollPane pane = active;
+        ScrollPane pane = getActive();
         if (pane == null) return;
         Controller controller = controllerOf(pane);
         if (controller != null) controller.animateTo(0);
@@ -243,18 +258,12 @@ public final class PCLScrollViewer {
 
     /// Recomputes the global "scrolled" flag for the extra buttons.
     public static void refresh() {
-        ScrollPane pane = active;
+        ScrollPane pane = getActive();
         Controller controller = pane == null ? null : controllerOf(pane);
         boolean value = controller != null && controller.realOffset > SHOW_THRESHOLD
                 && pane.isVisible() && pane.getScene() != null;
         if (scrolled.get() != value) scrolled.set(value);
         installed.removeIf(ref -> ref.get() == null);
-    }
-
-    /// Re-evaluates all `ShowCheck` delegates after a scroll event. Kept as a
-    /// separate hook because PCL2 also calls `ShowRefresh` on layout changes.
-    public static void refreshAll() {
-        refresh();
     }
 
     private static @Nullable Controller controllerOf(ScrollPane pane) {

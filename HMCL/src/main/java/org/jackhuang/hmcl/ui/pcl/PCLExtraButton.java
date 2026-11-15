@@ -76,6 +76,7 @@ public class PCLExtraButton extends StackPane {
     private final DoubleProperty hoverMix = new SimpleDoubleProperty(0);
 
     private boolean showing;
+    private boolean ribbleOnShow;
     private @Nullable Supplier<Boolean> showCheck;
     private @Nullable Runnable onClick;
     private @Nullable Timeline showTimeline;
@@ -151,6 +152,13 @@ public class PCLExtraButton extends StackPane {
         showRefresh();
     }
 
+    /// PCL2 `Ribble()` fires once when a ball appears to draw attention
+    /// (`Modules_ModMain.vb:1038`, `PageInstanceOverall.xaml.vb:271`).
+    /// Off by default: a scroll-driven ball must not ripple on every tick.
+    public void setRibbleOnShow(boolean value) {
+        this.ribbleOnShow = value;
+    }
+
     /// Binds `ShowRefresh()` to an observable (e.g. `PCLScrollViewer`).
     public void bindShowCheck(ObservableValue<? extends Boolean> observable) {
         observable.addListener((obs, oldValue, newValue) -> showRefresh());
@@ -165,8 +173,13 @@ public class PCLExtraButton extends StackPane {
     /// Directly sets the PCL2 `Show` property (used by verification hooks).
     public void setShow(boolean value) {
         if (showing == value) return;
+        boolean appearing = value;
         showing = value;
         if (showTimeline != null) showTimeline.stop();
+
+        if (appearing && ribbleOnShow && AnimationUtils.isAnimationEnabled()) {
+            PCLTheme.playRibble(panScale, SIZE / 2);
+        }
 
         if (value) {
             setMouseTransparent(false);
@@ -225,25 +238,14 @@ public class PCLExtraButton extends StackPane {
     }
 
     /// PCL2 `Ribble()`: a soft expanding ring used to draw attention to a ball.
+    /// Delegates to [PCLTheme#playRibble], which centres the ring in a
+    /// StackPane; the local `Circle(radius, fill)` version was off-centre
+    /// (its centre defaults to (0,0), not the 20,20 disc centre) and was
+    /// never called. PCL2 fires it after `LoaderTaskbarAdd` and on the April
+    /// Fools ball; HPCL fires it from [PCLDownloadBall] when a task arrives.
     public void ribble() {
-        if (!isVisible() || !AnimationUtils.isAnimationEnabled()) return;
-        Circle ring = new Circle(SIZE / 2, Color.web("#96C0F9"));
-        ring.setOpacity(0.5);
-        ring.setScaleX(0.2);
-        ring.setScaleY(0.2);
-        ring.setMouseTransparent(true);
-        panScale.getChildren().add(0, ring);
-        Timeline ripple = new Timeline(
-                new KeyFrame(Duration.ZERO,
-                        new KeyValue(ring.scaleXProperty(), 0.2),
-                        new KeyValue(ring.scaleYProperty(), 0.2),
-                        new KeyValue(ring.opacityProperty(), 0.5)),
-                new KeyFrame(Duration.millis(1000),
-                        new KeyValue(ring.scaleXProperty(), 2.2, PCLTheme.OUT_STRONG),
-                        new KeyValue(ring.scaleYProperty(), 2.2, PCLTheme.OUT_STRONG),
-                        new KeyValue(ring.opacityProperty(), 0, PCLTheme.IN_WEAK)));
-        ripple.setOnFinished(e -> panScale.getChildren().remove(ring));
-        ripple.play();
+        if (!isVisible()) return;
+        PCLTheme.playRibble(panScale, SIZE / 2);
     }
 
     private void installInteraction() {

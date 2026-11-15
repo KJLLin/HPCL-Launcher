@@ -785,7 +785,57 @@ public final class PCLTheme {
         row.getChildren().setAll(iconNode, texts, spacer, arrow);
         row.setOnMouseClicked(e -> action.run());
         attachListItemFeedback(row);
+        attachListItemArrowReveal(row, arrow);
         return row;
+    }
+
+    /// PCL2 `MyListItem.xaml.vb:573-596` floats the right-side ButtonStack in
+    /// on hover with `AaOpacity(..., Time*0.7, Time*0.3)` = 84ms after a 36ms
+    /// delay (Time=120), and out with `AaOpacity(..., Time*0.4)` = 72ms
+    /// (Time=180). HPCL has no ButtonStack; the trailing chevron plays that
+    /// role. Using opacity/translate only (never `setBackground`) keeps the
+    /// CSS-driven hover colours and dark-mode theme intact.
+    public static void attachListItemArrowReveal(Node item, Node arrow) {
+        arrow.setOpacity(0.45);
+        arrow.setTranslateX(-3);
+        Runnable cancel = () -> {
+            Object running = arrow.getProperties().get("hpcl.arrow.anim");
+            if (running instanceof Timeline t) t.stop();
+        };
+        item.addEventHandler(MouseEvent.MOUSE_ENTERED, e -> {
+            cancel.run();
+            if (!AnimationUtils.isAnimationEnabled()) {
+                arrow.setOpacity(1);
+                arrow.setTranslateX(0);
+                return;
+            }
+            Timeline t = new Timeline(
+                    new KeyFrame(Duration.millis(36),
+                            new KeyValue(arrow.opacityProperty(), arrow.getOpacity()),
+                            new KeyValue(arrow.translateXProperty(), arrow.getTranslateX())),
+                    new KeyFrame(Duration.millis(120),
+                            new KeyValue(arrow.opacityProperty(), 1, OUT_MIDDLE),
+                            new KeyValue(arrow.translateXProperty(), 0, OUT_MIDDLE)));
+            arrow.getProperties().put("hpcl.arrow.anim", t);
+            t.play();
+        });
+        item.addEventHandler(MouseEvent.MOUSE_EXITED, e -> {
+            cancel.run();
+            if (!AnimationUtils.isAnimationEnabled()) {
+                arrow.setOpacity(0.45);
+                arrow.setTranslateX(-3);
+                return;
+            }
+            Timeline t = new Timeline(
+                    new KeyFrame(Duration.ZERO,
+                            new KeyValue(arrow.opacityProperty(), arrow.getOpacity()),
+                            new KeyValue(arrow.translateXProperty(), arrow.getTranslateX())),
+                    new KeyFrame(Duration.millis(72),
+                            new KeyValue(arrow.opacityProperty(), 0.45, OUT_MIDDLE),
+                            new KeyValue(arrow.translateXProperty(), -3, OUT_MIDDLE)));
+            arrow.getProperties().put("hpcl.arrow.anim", t);
+            t.play();
+        });
     }
 
     // endregion
@@ -1207,6 +1257,35 @@ public final class PCLTheme {
         );
         exit.setOnFinished(e -> onFinished.run());
         exit.play();
+    }
+
+    /// PCL2 `Controls/MyTextButton.vb:28-32`: on a text change, fade the old
+    /// text out over 50ms, swap it, then fade back in over 170ms. Distinct
+    /// from `AaTextAppear` (per-character reveal used for page headings).
+    /// A guard key on the node prevents overlapping swaps from piling up
+    /// Timelines when a label is refreshed rapidly.
+    public static void playTextSwap(Label label, String text) {
+        if (label == null || label.getText().equals(text)) return;
+        Object previous = label.getProperties().get("hpcl.text.swap");
+        if (previous instanceof Timeline running) running.stop();
+        if (!AnimationUtils.isAnimationEnabled() || label.getScene() == null) {
+            label.setText(text);
+            label.setOpacity(1);
+            return;
+        }
+        Timeline swap = new Timeline(
+                new KeyFrame(Duration.ZERO,
+                        new KeyValue(label.opacityProperty(), label.getOpacity())),
+                new KeyFrame(Duration.millis(50), e -> label.setText(text),
+                        new KeyValue(label.opacityProperty(), 0)),
+                new KeyFrame(Duration.millis(220),
+                        new KeyValue(label.opacityProperty(), 1)));
+        swap.setOnFinished(e -> {
+            label.setOpacity(1);
+            label.getProperties().remove("hpcl.text.swap");
+        });
+        label.getProperties().put("hpcl.text.swap", swap);
+        swap.play();
     }
 
     /// PCL `AaTextAppear`: 70ms per character, used for page headings.

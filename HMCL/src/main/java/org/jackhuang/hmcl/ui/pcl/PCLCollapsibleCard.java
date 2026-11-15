@@ -54,8 +54,6 @@ import org.jetbrains.annotations.Nullable;
 @NotNullByDefault
 public class PCLCollapsibleCard extends VBox {
 
-    /// PCL `MyCard.SwapedHeight`.
-    public static final double SWAPPED_HEIGHT = 40;
     /// PCL heading occupies (15,12) -> (..,28); the swap hit area is
     /// `SwapedHeight - 6 = 34`, so the whole heading row is clickable.
     private static final double HEADER_HEIGHT = 28;
@@ -119,23 +117,18 @@ public class PCLCollapsibleCard extends VBox {
         clip.widthProperty().bind(body.widthProperty());
         clip.heightProperty().bind(body.heightProperty());
         body.setClip(clip);
+        // PCL2's `MyCard` re-measures `SwapControl` whenever `BuildContent()`
+        // appends rows (e.g. the live launch log). Track height changes in
+        // both states so a collapsed card that grows still expands to the
+        // correct height. `measureNaturalHeight()` in `setSwapped` handles
+        // the case where the collapsed body has no live height at all.
         body.heightProperty().addListener((obs, oldValue, newValue) -> {
-            if (!heightAnimating && !swapped && newValue.doubleValue() > 0) {
+            if (!heightAnimating && newValue.doubleValue() > 0) {
                 naturalHeight = newValue.doubleValue();
             }
         });
 
         getChildren().setAll(titleBar, body);
-    }
-
-    /// The card body, so callers can append live content (e.g. launch logs).
-    public VBox getBody() {
-        return body;
-    }
-
-    /// The heading label, for callers that add a header action.
-    public Label getTitleLabel() {
-        return titleLabel;
     }
 
     /// Puts a small control (e.g. PCL's tip-refresh `MyIconButton`) to the
@@ -163,6 +156,10 @@ public class PCLCollapsibleCard extends VBox {
     /// which applies the collapsed height without a height animation.
     public void setSwapped(boolean value, boolean animate) {
         if (swapped == value) return;
+        // Re-measure BEFORE changing padding/visibility. A collapsed body has
+        // no live height, and content may have grown while collapsed (the
+        // launch log appends rows), so the cached height alone is unreliable.
+        measureNaturalHeight();
         swapped = value;
         if (!value) {
             body.setVisible(true);
@@ -171,22 +168,34 @@ public class PCLCollapsibleCard extends VBox {
         } else {
             setPadding(SWAPPED_PADDING);
         }
-        ensureNaturalHeight();
         animateHeight(value, animate);
         animateArrow(value, animate);
     }
 
-    private void ensureNaturalHeight() {
-        if (naturalHeight <= 0) {
-            double h = body.getHeight();
-            if (h <= 0) h = body.prefHeight(body.getWidth() > 0 ? body.getWidth() : 400);
-            naturalHeight = Math.max(h, 20);
-        }
+    /// Recomputes the body's natural height from its current content, without
+    /// relying on the live layout height (which is 0 while collapsed).
+    private void measureNaturalHeight() {
+        if (heightAnimating) return;
+        double width = body.getWidth();
+        if (width <= 0) width = getWidth() - getPadding().getLeft() - getPadding().getRight();
+        if (width <= 0) width = 400;
+        double h = body.prefHeight(width);
+        if (h > 0) naturalHeight = h;
+        else if (naturalHeight <= 0) naturalHeight = Math.max(body.getHeight(), 20);
     }
 
     private void animateHeight(boolean collapse, boolean animate) {
-        if (heightAnimation != null) heightAnimation.stop();
-        double from = collapse ? naturalHeight : 0;
+        // A previous animation may have been interrupted (rapid clicks). Stop
+        // it and clear the guard flag, otherwise `heightAnimating` would stay
+        // true forever and freeze all future height tracking.
+        if (heightAnimation != null) {
+            heightAnimation.stop();
+            heightAnimation = null;
+        }
+        heightAnimating = false;
+        // PCL2 `StartHeightAnimation` starts from `PreviousHeight`, so an
+        // interrupted animation continues smoothly instead of snapping.
+        double from = Math.max(0, Math.min(naturalHeight, body.getHeight()));
         double to = collapse ? 0 : naturalHeight;
         body.setMaxHeight(from);
         if (!animate || !AnimationUtils.isAnimationEnabled()) {

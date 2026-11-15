@@ -508,10 +508,21 @@ public final class PCLLaunchProgressPage extends BorderPane implements Decorator
             count++;
         }
         rawProgress = count == 0 ? 0 : sum / count;
+        double actual = Math.max(0, Math.min(1, rawProgress));
         double shown = smoothedProgress.get();
-        if (rawProgress <= 0 || rawProgress >= 1 || shown > rawProgress)
-            smoothedProgress.set(rawProgress);
-        else smoothedProgress.set(shown * 0.9 + rawProgress * 0.1);
+        // PCL2 `PageLaunchLeft.xaml.vb:747-750`: creep toward the real value
+        // with a constant +0.0025 so a stalled loader never looks frozen,
+        // then fall straight back if the estimate overshoots the actual
+        // progress. A launched game jumps to 1 without "keeping suspense".
+        if (actual >= 1) {
+            shown = 1;
+        } else if (actual >= shown) {
+            shown += (actual - shown) * 0.1 + 0.0025;
+            if (actual <= shown) shown = actual;
+        } else {
+            shown = actual;
+        }
+        smoothedProgress.set(Math.max(0, Math.min(1, shown)));
 
         double pct = smoothedProgress.get() * 100;
         progressValue.setText(String.format("%05.2f %%", pct));

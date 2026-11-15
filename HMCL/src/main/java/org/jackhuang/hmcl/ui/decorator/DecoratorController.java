@@ -22,6 +22,11 @@ import javafx.application.Platform;
 import javafx.beans.property.BooleanProperty;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Parent;
+import javafx.scene.Scene;
+import javafx.scene.control.ButtonBase;
+import javafx.scene.control.ComboBoxBase;
+import javafx.scene.control.TextInputControl;
 import javafx.scene.input.*;
 import javafx.scene.layout.*;
 import javafx.stage.Stage;
@@ -110,6 +115,7 @@ public class DecoratorController {
                 1.0, i18n("hpcl.back.top"), PCLScrollViewer::scrollToHome);
         backToTop.setShowCheck(PCLScrollViewer::isScrolled);
         backToTop.bindShowCheck(PCLScrollViewer.scrolledProperty());
+        backToTop.setRibbleOnShow(true);
         extraStack.getStyleClass().add("hpcl-extra-stack");
         extraStack.setAlignment(Pos.BOTTOM_RIGHT);
         // A StackPane stretches children to its own size by default. Without
@@ -203,6 +209,24 @@ public class DecoratorController {
                 }
             });
         }
+
+        // PCL2 `FormMain.xaml.vb:860-870`: F5 refreshes both panes and Enter
+        // launches the game from the home page. Skip every shortcut while a
+        // text input has focus, otherwise typing in a search box / account
+        // field would launch the game or reload the page.
+        navigator.addEventHandler(KeyEvent.KEY_PRESSED, e -> {
+            if (e.getCode() != KeyCode.F5 && e.getCode() != KeyCode.ENTER) return;
+            if (isTextInputFocused(stage)) return;
+            if (e.getCode() == KeyCode.F5) {
+                refresh();
+                e.consume();
+            } else if (navigator.getCurrentPage() instanceof RootPage root) {
+                // PCL2 only fires this on `PageType.Launch`; a dialog or a
+                // sub-page must keep Enter for its own default button.
+                root.getMainPage().launchFromShortcut();
+                e.consume();
+            }
+        });
 
         navigator.addEventFilter(MouseEvent.MOUSE_CLICKED, e -> {
             if (e.getButton() == MouseButton.BACK) {
@@ -388,6 +412,16 @@ public class DecoratorController {
             });
             delay.play();
         }
+
+        // PCL2's balls live for the whole window, but their Timelines must not
+        // outlive the Stage (a hidden window with a running show/press animation
+        // keeps the Scene graph reachable). Stop them and drop the static
+        // scroll state when the window closes.
+        stage.setOnHidden(e -> {
+            backToTop.dispose();
+            downloadBall.dispose();
+            PCLScrollViewer.deactivate();
+        });
     }
 
     public Decorator getDecorator() {
@@ -494,6 +528,24 @@ public class DecoratorController {
             if (refreshable.refreshableProperty().get())
                 refreshable.refresh();
         }
+    }
+
+    /// PCL2 ignores global shortcuts while the user is typing. Walk up from
+    /// the focus owner so a TextField nested in a card is still detected, and
+    /// also skip focused buttons / combo boxes (Enter belongs to them).
+    private static boolean isTextInputFocused(Stage stage) {
+        Scene scene = stage == null ? null : stage.getScene();
+        Node focus = scene == null ? null : scene.getFocusOwner();
+        while (focus != null) {
+            if (focus instanceof TextInputControl input) return input.isEditable();
+            if (focus instanceof ComboBoxBase || focus instanceof ButtonBase) return true;
+            if (focus instanceof Parent) {
+                // A focused control is normally the leaf; continue walking up
+                // to catch composite editors (e.g. JFXPasswordField skin).
+            }
+            focus = focus.getParent();
+        }
+        return false;
     }
 
     private void onNavigated(Navigator.NavigationEvent event) {
