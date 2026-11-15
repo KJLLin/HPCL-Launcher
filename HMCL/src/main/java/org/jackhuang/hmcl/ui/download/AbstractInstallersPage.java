@@ -36,6 +36,7 @@ import org.jackhuang.hmcl.ui.Controllers;
 import org.jackhuang.hmcl.ui.FXUtils;
 import org.jackhuang.hmcl.ui.InstallerItem;
 import org.jackhuang.hmcl.ui.SVG;
+import org.jackhuang.hmcl.ui.pcl.PCLScrollViewer;
 import org.jackhuang.hmcl.ui.pcl.PCLTheme;
 import org.jackhuang.hmcl.ui.construct.MessageDialogPane;
 import org.jackhuang.hmcl.ui.wizard.Navigation;
@@ -167,6 +168,8 @@ public abstract class AbstractInstallersPage extends Control implements WizardPa
                 scrollPane.setFitToWidth(true);
                 scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
                 scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+                // PCL2 `MyScrollViewer` wheel easing for the installer list.
+                PCLScrollViewer.install(scrollPane);
                 root.setCenter(scrollPane);
                 BorderPane.setMargin(scrollPane, new Insets(12, 0, 12, 0));
             }

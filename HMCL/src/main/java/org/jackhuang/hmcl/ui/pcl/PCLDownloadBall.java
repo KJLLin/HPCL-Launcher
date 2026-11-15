@@ -79,6 +79,10 @@ public final class PCLDownloadBall extends HBox {
         setSpacing(8);
         setMaxSize(USE_PREF_SIZE, USE_PREF_SIZE);
         setPickOnBounds(false);
+        // MyExtraButton.xaml.vb sets `IsHitTestVisible = value` on Show/Hide
+        // ("防止缩放动画中依然可以点进去"). While hidden the whole control
+        // must be transparent to mouse events, not just invisible.
+        setMouseTransparent(true);
 
         disc.getStyleClass().add("hpcl-download-ball-disc");
         // The hover colour is animated as a mix factor (120ms in / 150ms out),
@@ -117,6 +121,13 @@ public final class PCLDownloadBall extends HBox {
         ballLayer.setScaleY(0);
 
         speedChip.getStyleClass().add("hpcl-download-ball-speed");
+        // MyExtraButton.xaml: PanScale (the visual disc/progress/glyph) is
+        // IsHitTestVisible="False"; only PanClick (the disc) receives clicks.
+        // HPCL's speed chip is a purely decorative sibling — never let it
+        // swallow clicks meant for the page underneath. The disc containers
+        // keep their default pickOnBounds=true so the whole 40px circle is a
+        // click target (equivalent to PCL2's round PanClick Border).
+        speedChip.setMouseTransparent(true);
         speedChip.setVisible(false);
         speedChip.setManaged(false);
         speedChip.textProperty().bind(Bindings.createStringBinding(
@@ -175,6 +186,8 @@ public final class PCLDownloadBall extends HBox {
         if (showTimeline != null) showTimeline.stop();
 
         if (value) {
+            // IsHitTestVisible = True: only the disc itself is clickable.
+            setMouseTransparent(false);
             setManaged(true);
             setVisible(true);
             speedChip.setVisible(true);
@@ -201,6 +214,10 @@ public final class PCLDownloadBall extends HBox {
                             new KeyValue(ballLayer.scaleYProperty(), 1, PCLTheme.BACK_WEAK)));
             showTimeline.play();
         } else {
+            // IsHitTestVisible = False IMMEDIATELY (not after the 220ms hide
+            // animation): PCL2 blocks clicks during the collapse animation so
+            // a shrinking ball cannot intercept a click on the page beneath.
+            setMouseTransparent(true);
             if (!AnimationUtils.isAnimationEnabled()) {
                 setVisible(false);
                 setManaged(false);
@@ -242,7 +259,13 @@ public final class PCLDownloadBall extends HBox {
     // ------------------------------------------------------------------ //
 
     private void installInteraction() {
-        setOnMousePressed(e -> {
+        // MyExtraButton.xaml: `PanClick` (the round Border) is the ONLY hit
+        // target; `PanScale` (the whole visual) is IsHitTestVisible=False.
+        // Bind the handlers to the 40px disc, not the enclosing HBox whose
+        // setPickOnBounds(false) made clicks unreliable, and keep the disc's
+        // bounds pickable so the entire circle is clickable.
+        ballLayer.setPickOnBounds(true);
+        ballLayer.setOnMousePressed(e -> {
             if (e.getButton() != javafx.scene.input.MouseButton.PRIMARY) return;
             if (pressTimeline != null) pressTimeline.stop();
             if (!AnimationUtils.isAnimationEnabled()) {
@@ -255,7 +278,7 @@ public final class PCLDownloadBall extends HBox {
                     new KeyValue(ballLayer.scaleYProperty(), 0.85, PCLTheme.OUT_STRONG)));
             pressTimeline.play();
         });
-        setOnMouseReleased(e -> {
+        ballLayer.setOnMouseReleased(e -> {
             if (pressTimeline != null) pressTimeline.stop();
             if (!AnimationUtils.isAnimationEnabled()) {
                 ballLayer.setScaleX(1);
@@ -268,12 +291,12 @@ public final class PCLDownloadBall extends HBox {
                     new KeyValue(ballLayer.scaleYProperty(), 1, PCLTheme.BACK_WEAK)));
             pressTimeline.play();
         });
-        setOnMouseClicked(e -> {
+        ballLayer.setOnMouseClicked(e -> {
             if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY && onOpen != null)
                 onOpen.run();
         });
-        setOnMouseEntered(e -> animateHover(1, 120));
-        setOnMouseExited(e -> animateHover(0, 150));
+        ballLayer.setOnMouseEntered(e -> animateHover(1, 120));
+        ballLayer.setOnMouseExited(e -> animateHover(0, 150));
     }
 
     private void animateHover(double target, int millis) {
@@ -298,6 +321,7 @@ public final class PCLDownloadBall extends HBox {
         chip.setText(PCLDownloadTaskPage.formatSpeed(bytesPerSecond));
         chip.setVisible(true);
         chip.setManaged(true);
+        setMouseTransparent(false);
         setVisible(true);
         setManaged(true);
         setOpacity(1);

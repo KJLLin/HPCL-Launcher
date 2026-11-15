@@ -556,7 +556,11 @@ public final class PCLTheme {
         HBox navLayer = new HBox(10);
         navLayer.getStyleClass().add("hpcl-topbar-nav");
         navLayer.setAlignment(Pos.CENTER);
-        JFXButton launchItem = createNavItem(i18n("version.launch"), SVG.ROCKET_LAUNCH, launch);
+        // PCL2 FormMain.xaml declares BtnTitleSelect0 Text="启动" (two
+        // characters, like 下载 / 联机 / 设置 / 更多). Using the HMCL
+        // "version.launch" string produced a four-character pill that is
+        // noticeably wider than the other four.
+        JFXButton launchItem = createNavItem(i18n("hpcl.nav.launch"), SVG.ROCKET_LAUNCH, launch);
         JFXButton downloadItem = createNavItem(i18n("download"), SVG.DOWNLOAD, download);
         JFXButton linkItem = createNavItem(i18n("hpcl.nav.link"), SVG.LINK, link);
         JFXButton settingsItem = createNavItem(i18n("settings"), SVG.SETTINGS, settings);

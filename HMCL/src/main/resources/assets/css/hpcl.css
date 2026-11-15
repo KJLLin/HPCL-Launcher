@@ -905,7 +905,10 @@ code, .monospace { -fx-font-family: "Noto Sans Mono CJK SC", "Consolas", "DejaVu
 .jfx-layout-actions {
     -fx-alignment: center-right;
     -fx-spacing: 12;
-    -fx-padding: 0 8 0 150;
+    /* PCL2 PanBtn Margin="150,0,8,0" lets WPF's auto-sizing StackPanel grow
+       the card. JavaFX HBox instead SHRINKS the buttons to fit that 150px
+       inset (they render as "..."). Keep right alignment with a small pad. */
+    -fx-padding: 0 8 0 8;
 }
 
 /* Modules/ModMain.vb HintTick: bottom-left gradient capsule, radius
@@ -1812,3 +1815,161 @@ code, .monospace { -fx-font-family: "Noto Sans Mono CJK SC", "Consolas", "DejaVu
     -fx-effect: null;
     -fx-opacity: 0.7;
 }
+
+
+/* ================================================================== *
+ * PCL2 fidelity pass — MyButton / MyMsg / form controls              *
+ * Sources: Controls/MyButton.xaml(.vb), Controls/MyMsg/MyMsgText,    *
+ *          MyMsgSelect, MyMsgInput.xaml(.vb), FormMain.xaml.vb EULA,  *
+ *          Controls/MyTextBox.vb, MyCheckBox.xaml, MyComboBox.vb      *
+ * ================================================================== */
+
+/* Controls/MyButton.xaml: PanFore is a Border with CornerRadius 3,
+   BorderThickness 1, Background = ColorBrushHalfWhite and BorderBrush =
+   ColorBrush1 (Normal) / ColorBrush2 (Highlight) / ColorBrushRedDark (Red).
+   LabText Foreground is bound to the border brush, FontSize 13, centred.
+   Hover changes the border to ColorBrush3 and the fill to ColorBrush7
+   (AnimationColorIn 100ms / Out 200ms). The previous HMCL skin left these
+   classes as bare coloured text; restore the outlined card button. */
+.jfx-button.dialog-accept,
+.jfx-button.dialog-cancel,
+.jfx-button.dialog-error,
+.jfx-button.hpcl-pcl-button,
+.button.dialog-accept,
+.button.dialog-cancel {
+    -fx-background-color: rgba(255, 255, 255, 0.72);
+    -fx-background-radius: 3;
+    -fx-border-radius: 3;
+    -fx-border-width: 1;
+    -fx-padding: 6 13 6 13;
+    -fx-font-size: 13px;
+    -fx-font-weight: normal;
+    -fx-cursor: hand;
+    -fx-effect: null;
+    -fx-background-insets: 0;
+    /* WPF MyButton auto-sizes to its label. JavaFX HBox would otherwise
+       shrink short labels down to an ellipsis when the card is narrow. */
+    -fx-min-width: 72px;
+    -fx-text-overrun: clip;
+}
+.jfx-button.dialog-accept, .button.dialog-accept,
+.jfx-button.hpcl-pcl-button {
+    /* Highlight: ColorBrush2 border, faint blue wash so it reads as primary. */
+    -fx-border-color: -hpcl-c2;
+    -fx-text-fill: -hpcl-c2;
+    -fx-background-color: rgba(213, 230, 253, 0.50);
+}
+.jfx-button.dialog-cancel, .button.dialog-cancel {
+    /* Normal: ColorBrush1 border, half-white fill, blue label. */
+    -fx-border-color: -hpcl-c3;
+    -fx-text-fill: -hpcl-c3;
+    -fx-background-color: rgba(255, 255, 255, 0.72);
+}
+.jfx-button.dialog-error {
+    /* Red: ColorBrushRedDark / ColorBrushRedBack. */
+    -fx-border-color: #C62830;
+    -fx-text-fill: #C62830;
+    -fx-background-color: rgba(255, 221, 223, 0.55);
+}
+.jfx-button.dialog-accept:hover, .button.dialog-accept:hover,
+.jfx-button.dialog-cancel:hover, .button.dialog-cancel:hover,
+.jfx-button.hpcl-pcl-button:hover {
+    -fx-border-color: -hpcl-c4;
+    -fx-background-color: -hpcl-c7;
+}
+.jfx-button.dialog-error:hover { -fx-border-color: #E05258; -fx-background-color: #FFCDD0; }
+.jfx-button.dialog-accept:disabled, .jfx-button.dialog-cancel:disabled,
+.jfx-button.dialog-error:disabled, .jfx-button.hpcl-pcl-button:disabled {
+    -fx-opacity: 0.45;
+    -fx-border-color: #9AA8BC;
+    -fx-text-fill: #6B798E;
+    -fx-background-color: rgba(255, 255, 255, 0.55);
+}
+/* Keep the rippler from painting a solid rect over the outlined card. */
+.jfx-button.dialog-accept .jfx-rippler,
+.jfx-button.dialog-cancel .jfx-rippler,
+.jfx-button.dialog-error .jfx-rippler,
+.jfx-button.hpcl-pcl-button .jfx-rippler { -jfx-rippler-fill: rgba(19, 112, 243, 0.16); }
+
+/* MyMsgText.xaml: LabTitle 23px ColorBrush2 with a 2px underline of the
+   SAME colour; LabCaption 15px #5C5C5C; PanBtn right aligned. The card has
+   NO leading 40px icon (that was an HMCL artefact) so the heading now starts
+   at the 7px left inset PCL uses. */
+.jfx-dialog-layout .jfx-layout-heading {
+    -fx-padding: 0 70 9 7;
+    -fx-border-color: transparent transparent -hpcl-c2 transparent;
+    -fx-border-width: 0 0 2 0;
+}
+.jfx-dialog-layout.hpcl-msg-warn .jfx-layout-heading,
+.jfx-dialog-layout.hpcl-msg-warn .jfx-layout-heading .label {
+    -fx-text-fill: #D82929;
+    -fx-border-color: transparent transparent #D82929 transparent;
+}
+.jfx-dialog-layout.hpcl-msg-warn .dialog-accept { -fx-border-color: #C62830; -fx-text-fill: #C62830; }
+.jfx-dialog-layout .jfx-layout-actions { -fx-alignment: center-right; -fx-spacing: 12; -fx-padding: 0 8 0 8; }
+
+/* MyMsgText.xaml.vb Loaded: PanMsg fades to MyColor(90,0,0,0) = 35% black
+   (or MyColor(140,80,0,0) = dark red for warnings) over 200ms. JFXDialog's
+   overlay pane is the same node; set the PCL colour here. */
+.jfx-dialog-overlay-pane { -fx-background-color: rgba(0, 0, 0, 0.35); }
+.jfx-dialog-overlay-pane.hpcl-msg-warn { -fx-background-color: rgba(80, 0, 0, 0.55); }
+
+/* Controls/MyTextBox.vb + MyCheckBox.xaml + MyComboBox.vb: PCL2 uses a
+   flat 1px blue underline field, a square blue check box and a light blue
+   combo popup instead of the material-design JFoenix defaults. */
+.jfx-dialog-layout .jfx-text-field,
+.jfx-dialog-layout .jfx-password-field,
+.jfx-dialog-layout .text-field {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent -hpcl-c5 transparent;
+    -fx-border-width: 0 0 1 0;
+    -fx-padding: 6 4 6 4;
+    -fx-font-size: 14px;
+    -fx-text-fill: -hpcl-ink;
+    -fx-prompt-text-fill: -hpcl-ink-muted;
+}
+.jfx-dialog-layout .jfx-text-field:focused,
+.jfx-dialog-layout .jfx-password-field:focused,
+.jfx-dialog-layout .text-field:focused {
+    -fx-border-color: transparent transparent -hpcl-c3 transparent;
+    -fx-border-width: 0 0 2 0;
+}
+.jfx-dialog-layout .jfx-text-field > .input-line,
+.jfx-dialog-layout .jfx-password-field > .input-line { -fx-background-color: transparent; }
+.jfx-dialog-layout .jfx-text-field > .input-focused-line,
+.jfx-dialog-layout .jfx-password-field > .input-focused-line { -fx-background-color: transparent; }
+
+/* ================================================================== *
+ * PCL2 MyCard / MyExtraButton / MyScrollViewer polish                *
+ * ================================================================== */
+
+/* FormMain.xaml: five `MyExtraButton` discs stacked in the bottom-right
+   corner. Only the discs receive input; the gaps stay click-through. */
+.hpcl-extra-stack {
+    -fx-background-color: transparent;
+    -fx-alignment: bottom-right;
+}
+.hpcl-extra-button-click { -fx-background-color: transparent; }
+.hpcl-extra-button-glyph, .hpcl-extra-button-glyph .svg { -fx-fill: -hpcl-c8; }
+
+/* Controls/MyCard.vb CanSwap: a 28px clickable heading with a chevron at
+   the right. Hover tints the heading, chevron and shadow like MyCard. */
+.hpcl-collapsible-title-bar { -fx-cursor: hand; }
+.hpcl-collapsible-arrow, .hpcl-collapsible-arrow .svg { -fx-fill: -hpcl-c1; }
+.hpcl-collapsible-card:hover .hpcl-collapsible-arrow,
+.hpcl-collapsible-card:hover .hpcl-collapsible-arrow .svg { -fx-fill: -hpcl-c2; }
+.hpcl-collapsible-card:hover .hpcl-card-title { -fx-text-fill: -hpcl-c2; }
+.hpcl-collapsible-card .hpcl-flow-card-body { -fx-padding: 2 0 0 0; }
+
+/* PageLaunchRight.xaml PanLog: a compact read-only MyTextBox. */
+.hpcl-launch-log-text {
+    -fx-font-family: "Consolas", "Cascadia Mono", "Noto Sans Mono CJK SC", monospace;
+    -fx-font-size: 11.5px;
+    -fx-line-spacing: 3px;
+    -fx-text-fill: -hpcl-ink-2;
+    -fx-wrap-text: true;
+}
+
+/* BtnLaunch is now a StackPane: title slightly above centre, LabVersion
+   pinned near the bottom (Padding 30,0,30,15 in PCL2). */
+.launch-pane > .jfx-button .hpcl-launch-graphic { -fx-padding: 0; }

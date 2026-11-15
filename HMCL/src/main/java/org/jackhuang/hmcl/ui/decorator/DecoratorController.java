@@ -50,7 +50,9 @@ import org.jackhuang.hmcl.ui.main.LauncherSettingsPage;
 import org.jackhuang.hmcl.ui.main.RootPage;
 import org.jackhuang.hmcl.ui.pcl.PCLDownloadCenter;
 import org.jackhuang.hmcl.ui.pcl.PCLDownloadTaskPage;
+import org.jackhuang.hmcl.ui.pcl.PCLExtraButton;
 import org.jackhuang.hmcl.ui.pcl.PCLHubPage;
+import org.jackhuang.hmcl.ui.pcl.PCLScrollViewer;
 import org.jackhuang.hmcl.ui.pcl.PCLTheme;
 import org.jackhuang.hmcl.ui.wizard.Refreshable;
 import org.jackhuang.hmcl.ui.wizard.WizardProvider;
@@ -69,6 +71,13 @@ public class DecoratorController {
     /// PCL's floating download ball, anchored to the bottom-right corner.
     private final org.jackhuang.hmcl.ui.pcl.PCLDownloadBall downloadBall =
             new org.jackhuang.hmcl.ui.pcl.PCLDownloadBall();
+    /// PCL2 `FormMain.xaml` stacks five `MyExtraButton` controls in the
+    /// bottom-right corner. Besides the download ball, `BtnExtraBack` is the
+    /// visible one: `MyScrollViewer` calls `ShowRefresh()` on every scroll,
+    /// and it appears once a page is scrolled away from the top.
+    private final PCLExtraButton backToTop;
+    /// PCL2 `PanExtra` stack: back-to-top above the download ball.
+    private final VBox extraStack = new VBox(10);
     private static final String TASK_HANDLER_KEY = "hpcl.task.close.handler";
 
     public DecoratorController(Stage stage, Node mainPage) {
@@ -94,6 +103,26 @@ public class DecoratorController {
         }
         toastLayer = PCLTheme.createToastLayer();
 
+        // PCL2 `BtnExtraBack`: a top rule plus an upward arrow, revealed by
+        // `MyScrollViewer.ScrollChanged -> ShowRefresh()` and clicking it runs
+        // `PanBack.ScrollToHome()`.
+        backToTop = new PCLExtraButton(
+                "M4 3 h16 v2.2 H4 Z M12 6.4 L18.4 12.8 H15.2 V20 H8.8 V12.8 H5.6 Z",
+                1.0, i18n("hpcl.back.top"), PCLScrollViewer::scrollToHome);
+        backToTop.setShowCheck(PCLScrollViewer::isScrolled);
+        backToTop.bindShowCheck(PCLScrollViewer.scrolledProperty());
+        extraStack.getStyleClass().add("hpcl-extra-stack");
+        extraStack.setAlignment(Pos.BOTTOM_RIGHT);
+        // A StackPane stretches children to its own size by default. Without
+        // an explicit max size the ball stack would cover the entire content
+        // area and swallow every wheel/click event (the classic HPCL ball
+        // occlusion bug). Keep it at its preferred 40px-wide footprint.
+        extraStack.setMaxSize(Region.USE_PREF_SIZE, Region.USE_PREF_SIZE);
+        // PCL2 `PanExtra` only lets the discs receive input, never the empty
+        // space between them.
+        extraStack.setPickOnBounds(false);
+        extraStack.getChildren().setAll(backToTop, downloadBall);
+
         navigator = new Navigator();
         navigator.setOnNavigated(this::onNavigated);
         navigator.init(mainPage);
@@ -106,13 +135,13 @@ public class DecoratorController {
         StackPane.setAlignment(toastLayer, Pos.BOTTOM_LEFT);
         // PCL keeps its download-speed ball at the bottom-right, above page
         // content and below modal dialogs.
-        StackPane.setAlignment(downloadBall, Pos.BOTTOM_RIGHT);
-        StackPane.setMargin(downloadBall, new javafx.geometry.Insets(0, 20, 20, 0));
+        StackPane.setAlignment(extraStack, Pos.BOTTOM_RIGHT);
+        StackPane.setMargin(extraStack, new javafx.geometry.Insets(0, 20, 20, 0));
         // PCL2 has no floating white square progress box. Download progress
         // lives on the blue `BtnExtraDownload` ball (bottom-right) and in the
         // TaskManager card flow only; completion is reported via PCL Hint() ->
         // Toast. So the task-panel layer is intentionally NOT docked here.
-        decorator.getContent().setAll(contentRoot, downloadBall, toastLayer);
+        decorator.getContent().setAll(contentRoot, extraStack, toastLayer);
         // PCL `BtnExtraDownload_Click`: the download ball opens TaskManager.
         downloadBall.setOnOpen(() -> {
             if (!(navigator.getCurrentPage() instanceof PCLDownloadTaskPage))
@@ -205,6 +234,38 @@ public class DecoratorController {
                         "弹窗卡片按 PCL MyMsgText 复刻：圆角 7、浅灰白底、23px 标题与 2px 分隔线、15px 正文，并以倾斜回弹动画进场。",
                         "弹窗卡片验证", MessageDialogPane.MessageType.INFO)
                         .ok(null).build();
+                showDialog(dialog);
+            });
+            delay.play();
+        }
+        // PCL2 MyMsgInput: an input dialog with the underlined MyTextBox.
+        if (System.getProperty("hpcl.inputdialog.test") != null) {
+            javafx.animation.PauseTransition delay =
+                    new javafx.animation.PauseTransition(Duration.millis(1600));
+            delay.setOnFinished(e -> showDialog(
+                    new org.jackhuang.hmcl.ui.construct.InputDialogPane(
+                            "请输入新的游戏实例名称：", "我的世界 1.20.4",
+                            (value, handler) -> handler.resolve())));
+            delay.play();
+        }
+        // Fast PCL2 dialog hooks for real-session captures (opt-in only).
+        if (System.getProperty("hpcl.dialog2.test") != null
+                || System.getProperty("hpcl.dialogwarn.test") != null) {
+            boolean warn = System.getProperty("hpcl.dialogwarn.test") != null;
+            javafx.animation.PauseTransition delay =
+                    new javafx.animation.PauseTransition(Duration.millis(1600));
+            delay.setOnFinished(e -> {
+                MessageDialogPane dialog = new MessageDialogPane.Builder(
+                        warn
+                            ? "检测到游戏文件校验失败，部分资源可能被损坏。是否重新下载这些文件？"
+                            : "这是一个按 PCL2 MyMsgText 复刻的对话框：浅灰白卡片、23px 蓝色标题与 2px 分隔线、15px 正文，底部是三个 PCL2 描边按钮（MyButton）。",
+                        warn ? "文件校验失败" : "PCL2 弹窗样式",
+                        warn ? MessageDialogPane.MessageType.WARNING
+                             : MessageDialogPane.MessageType.INFO)
+                        .addAction(i18n("button.ok"), null)
+                        .addCancel(null)
+                        .addExtraAction("查看详情", null)
+                        .build();
                 showDialog(dialog);
             });
             delay.play();
@@ -456,6 +517,14 @@ public class DecoratorController {
         // PCL `BtnExtraDownload_ShowCheck`: the ball hides while TaskManager
         // is open, so it never overlaps the very list it opens.
         downloadBall.setTaskPageVisible(to instanceof PCLDownloadTaskPage);
+
+        // PCL2 `MyScrollViewer.IsVisibleChanged -> BtnExtraBack.ShowRefresh()`:
+        // the active PCL scroll pane follows the current page. Defer one frame
+        // so lazily built pages (RootPage -> MainPage) are in the scene tree.
+        Platform.runLater(() -> {
+            PCLScrollViewer.activate(to);
+            backToTop.showRefresh();
+        });
 
         // PCL `PageChangeActual`: the four top-level pages show PanTitleMain
         // (the centred pills); every deeper page swaps to PanTitleInner with

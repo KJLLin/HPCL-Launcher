@@ -20,13 +20,25 @@
 - 页面切换动画：`InBack / OutBack / OutFluent / OutElastic / InFluent` 等缓动按 `ModAnimation.vb` 的时长与曲线实现；按钮 0.955 按压缩放、列表项选中动效、提示条 `AniDispose` 收缩淡出、"你知道吗" 预设卡片
 - 左栏入场 stagger 动画（`MyPageLeft.TriggerShowAnimation`），在下载 / 设置 / 联机 / 更多等页面统一播放
 - 启动器开场动画：`Angle -4° + Y 60 + 淡入`，按 250 / 600 / 500ms 与 100ms 延迟归位
+- 顶栏为白色描边 `H` 徽标 + 纯文字 `HPCL` 字标（17px 粗体），栏高 48px
+- 五个标签文案统一为 2 字（新增 `hpcl.nav.launch` 键，9 个语言包全部补齐），首项显示「启动」而非「启动游戏」
+- 启动按钮为 PCL2 的固定双行槽：17px 主标题 + 11px 版本号贴底；无可用版本时按 `RefreshButtonsUI` Case 2 显示「下载游戏 / 未找到可用的游戏版本」
+- 右栏含 PCL2 固定「启动日志」卡片，接真实启动事件（时间戳 + 最近 7 行，Consolas 等宽字体），不是假日志
+- 弹窗统一为 PCL2 样式：协议授权 / 协议更新 / 消息 / 警告（红色标题与遮罩）/ 输入共五种，2px 标题分隔线 + 描边按钮 + 倾斜回弹进出场
+
+### 动效与操作手感
+
+- **卡片折叠**（`PCLCollapsibleCard`，对应 PCL2 `MyCard.vb` 的 `CanSwap`）：点击标题栏切换折叠，箭头 250ms `OutFluent` 翻转 180°→0°，高度按距离分两段曲线（短距离 150ms、长距离匀速段 + 减速段），折叠态精确收至 40px，内容用 `Rectangle` clip 防溢出；已落地在「你知道吗？」与「启动日志」卡片
+- **右下球堆栈**（`PCLExtraButton`，对应 `FormMain.xaml` 的 5 个 `MyExtraButton`）：40px 圆盘、`ColorBrush3 → 4` 悬停 120/150ms 渐变、0.85 按压缩放与 300ms `OutBack` 释放、1000ms `Ribble` 扩散圆环；实现了 PCL2 的「返回顶部」球（页面滚离顶部后出现，点击 300ms `OutFluent` 平滑回顶并收起）。投降 / 关服 / 音乐球在 HPCL 无对应功能，不造假入口
+- **滚动惯性**（`PCLScrollViewer`，对应 `MyScrollViewer.vb`）：替换 HMCL 的 MaterialFX 摩擦模型，滚轮一格按 `WHEEL_TO_PCL = 3.0` 换算（WPF 120 ↔ JavaFX 40px），300ms `OutFluent` 缓动到目标；快滚是「延长目标」而非叠加动画，跟手且可精确停住；`FXUtils.smoothScrolling` 全局接入，所有页面手感统一
+- 球堆栈固定 40px 足迹并 `pickOnBounds(false)`，不会吞掉卡片流的鼠标 / 滚轮事件
 
 ### 图标库
 
 - 图标全部为可控 24×24 纯几何路径，**64 个语义图标**覆盖 `SVG` 的 **107 个枚举**，逐项按 PCL2 语义映射（启动三角 / 下载箭头 / wifi / 六边形齿轮 / 四宫格 / 镐子 / 放大镜……）
 - 生成脚本与映射表随仓库提供：`config/icons/gen_icons.py` + `config/icons/icons.json`，可复现重建，避免再次出现图标错乱
 - HPCL 方形像素 Logo：`config/launcher/` 内含 16 / 20 / 24 / 32 / 40 / 48 / 64 / 96 / 128 / 256 / 512 多档尺寸，另含 `HPCL.ico`（多帧 ICO）与 `patch_pe_icon.py`（直接修补 exe 的 PE 图标资源）
-- 主题样式集中在 `HMCL/src/main/resources/assets/css/hpcl.css`（约 357 条规则），Java 侧由 `ui/pcl/PCLTheme.java` 统一注入
+- 主题样式集中在 `HMCL/src/main/resources/assets/css/hpcl.css`（约 385 条规则），Java 侧由 `ui/pcl/PCLTheme.java` 统一注入
 
 ### 下载与任务
 
@@ -94,7 +106,7 @@
 
 ```bash
 # 直接运行 fat jar
-java -jar HMCL/build/libs/HPCL-3.16.4.jar
+java -jar HMCL/build/libs/HPCL-3.16.SNAPSHOT.jar
 
 # 或从源码启动（开发调试）
 ./gradlew :HMCL:run

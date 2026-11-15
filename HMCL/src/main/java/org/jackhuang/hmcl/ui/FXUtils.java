@@ -74,6 +74,7 @@ import org.jackhuang.hmcl.ui.construct.MenuSeparator;
 import org.jackhuang.hmcl.ui.construct.PopupMenu;
 import org.jackhuang.hmcl.ui.image.ImageLoader;
 import org.jackhuang.hmcl.ui.image.ImageUtils;
+import org.jackhuang.hmcl.ui.pcl.PCLScrollViewer;
 import org.jackhuang.hmcl.util.Lang;
 import org.jackhuang.hmcl.util.ResourceNotFoundError;
 import org.jackhuang.hmcl.util.io.FileUtils;
@@ -423,9 +424,12 @@ public final class FXUtils {
         cell.minWidthProperty().bind(widthProperty);
     }
 
+    /// PCL2 `Controls/MyScrollViewer.vb`: every page uses the same 300ms
+    /// `AniEaseOutFluent(6)` target-based wheel easing. `ScrollUtils` (the
+    /// MaterialFX velocity/friction model) is still used for VirtualFlow.
     public static void smoothScrolling(ScrollPane scrollPane) {
         if (AnimationUtils.isAnimationEnabled())
-            ScrollUtils.addSmoothScrolling(scrollPane);
+            PCLScrollViewer.install(scrollPane);
     }
 
     public static void smoothScrolling(VirtualFlow<?> virtualFlow) {

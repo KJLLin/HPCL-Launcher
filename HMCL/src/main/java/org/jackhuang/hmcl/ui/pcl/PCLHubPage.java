@@ -117,6 +117,8 @@ public final class PCLHubPage extends BorderPane implements DecoratorPage {
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scroll.getStyleClass().add("hpcl-hub-scroll");
+        // PCL2 `MyScrollViewer` drives the help / about / toolbox card flow.
+        PCLScrollViewer.installPrimary(scroll);
         flow.getStyleClass().add("hpcl-hub-flow");
 
         contentStack.getChildren().setAll(scroll, loader);

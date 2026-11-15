@@ -193,6 +193,9 @@ public final class PCLDownloadTaskPage extends BorderPane implements DecoratorPa
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scroll.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        // PCL2 `MyScrollViewer`: the task card flow eases with the same
+        // 300ms OutFluent(6) curve as every other page.
+        PCLScrollViewer.installPrimary(scroll);
         wrapper.getChildren().setAll(scroll);
         return wrapper;
     }

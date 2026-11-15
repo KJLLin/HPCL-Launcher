@@ -71,14 +71,17 @@ public final class MessageDialogPane extends HBox {
 
     public MessageDialogPane(@NotNull String text, @Nullable String title, @NotNull MessageType type) {
         this.setSpacing(16);
+        // PCL2 MyMsg*.xaml: MinWidth="400" with a 25px outer Margin.
+        setMinWidth(420);
         this.getStyleClass().add("jfx-dialog-layout");
-
-        Label graphic = new Label();
-        graphic.setTranslateX(10);
-        graphic.setTranslateY(10);
-        graphic.setMinSize(40, 40);
-        graphic.setMaxSize(40, 40);
-        graphic.setGraphic(type.getIcon().createIcon(40));
+        // PCL2 MyMsgText/Select/Input have NO leading 40px icon. Warnings are
+        // signalled by IsWarn: a red title, a red primary button and a dark
+        // red scrim. Map HMCL's error/warning message types onto that state.
+        if (type == MessageType.ERROR || type == MessageType.WARNING) {
+            getStyleClass().add("hpcl-msg-warn");
+        }
+        // Mark so DialogUtils does not play the entrance animation twice.
+        getProperties().put("hpcl.dialog.animated", Boolean.TRUE);
 
         VBox vbox = new VBox();
         HBox.setHgrow(vbox, Priority.ALWAYS);
@@ -108,7 +111,9 @@ public final class MessageDialogPane extends HBox {
             vbox.getChildren().setAll(titlePane, content, actions);
         }
 
-        this.getChildren().setAll(graphic, vbox);
+        // PCL2's card is a plain vertical stack: heading, 2px rule, caption,
+        // right-aligned MyButtons. Keep the HBox shell but drop the icon.
+        this.getChildren().setAll(vbox);
 
         // PCL `MyMsgText.Loaded`: the dialog card starts tilted -4deg and
         // 40px low, then fades in and settles with OutBack / OutFluent.
@@ -126,14 +131,30 @@ public final class MessageDialogPane extends HBox {
     }
 
     public void addButton(Node btn) {
-        // PCL `MyMsgText.Close`: fade 80ms, slide to Y20 and rotate to 6deg
-        // over 150ms before the dialog is actually removed.
-        btn.addEventHandler(ActionEvent.ACTION, e -> {
-            if (closing) return;
-            closing = true;
-            PCLTheme.playDialogExit(this,
-                    () -> fireEvent(new DialogCloseEvent()));
-        });
+        addButton(btn, true);
+    }
+
+    /// Adds a button. [closeOnAction] mirrors PCL2's `ButtonNAction`: when an
+    /// action delegate is supplied the dialog stays open (e.g. EULA's
+    /// "查看用户协议与免责声明" opens a web page without dismissing the card).
+    public void addButton(Node btn, boolean closeOnAction) {
+        // Controls/MyButton.xaml.vb: 0.955 press scale (80ms) and spring back.
+        if (!btn.getStyleClass().contains("hpcl-pcl-button"))
+            btn.getStyleClass().add("hpcl-pcl-button");
+        if (!Boolean.TRUE.equals(btn.getProperties().get("hpcl.pcl.press"))) {
+            btn.getProperties().put("hpcl.pcl.press", Boolean.TRUE);
+            PCLTheme.attachPCLButtonPress(btn);
+        }
+        if (closeOnAction) {
+            // PCL `MyMsgText.Close`: fade 80ms, slide to Y20 and rotate to 6deg
+            // over 150ms before the dialog is actually removed.
+            btn.addEventHandler(ActionEvent.ACTION, e -> {
+                if (closing) return;
+                closing = true;
+                PCLTheme.playDialogExit(this,
+                        () -> fireEvent(new DialogCloseEvent()));
+            });
+        }
         actions.getChildren().add(btn);
     }
 
@@ -183,6 +204,19 @@ public final class MessageDialogPane extends HBox {
                 btnAction.setOnAction(e -> action.run());
             }
             dialog.addButton(btnAction);
+            return this;
+        }
+
+        /// A third `MyButton` whose action does NOT dismiss the card, exactly
+        /// like PCL2's `Button3Action` (FormMain EULA: 查看用户协议…). PCL2
+        /// orders the buttons Btn1/Btn2/Btn3 right-to-left with 12px gaps.
+        public Builder addExtraAction(String text, @Nullable Runnable action) {
+            JFXButton btn = new JFXButton(text);
+            btn.getStyleClass().add("dialog-cancel");
+            if (action != null) {
+                btn.setOnAction(e -> action.run());
+            }
+            dialog.addButton(btn, false);
             return this;
         }
 

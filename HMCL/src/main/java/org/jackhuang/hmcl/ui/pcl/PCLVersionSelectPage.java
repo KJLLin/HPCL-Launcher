@@ -63,6 +63,7 @@ public final class PCLVersionSelectPage extends StackPane implements DecoratorPa
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scroll.getStyleClass().add("hpcl-hub-scroll");
+        PCLScrollViewer.install(scroll);
 
         buildEmptyCard();
         emptyCard.setVisible(false);

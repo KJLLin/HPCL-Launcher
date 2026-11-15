@@ -18,7 +18,6 @@
 package org.jackhuang.hmcl.ui;
 
 import com.jfoenix.controls.JFXButton;
-import com.jfoenix.controls.JFXDialogLayout;
 import com.jfoenix.validation.base.ValidatorBase;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
@@ -615,24 +614,30 @@ public final class Controllers {
                     .build());
         }
 
-        if (SettingsManager.userState().agreementVersionProperty().get() < 1) {
-            JFXDialogLayout agreementPane = new JFXDialogLayout();
-            agreementPane.setHeading(new Label(i18n("launcher.agreement")));
-            agreementPane.setBody(new Label(i18n("launcher.agreement.hint")));
-            JFXHyperlink agreementLink = new JFXHyperlink(i18n("launcher.agreement"));
-            agreementLink.setExternalLink(Metadata.EULA_URL);
-            JFXButton yesButton = new JFXButton(i18n("launcher.agreement.accept"));
-            yesButton.getStyleClass().add("dialog-accept");
-            yesButton.setOnAction(e -> {
-                UserState userState = userState();
-                userState.agreementVersionProperty().set(1);
-                agreementPane.fireEvent(new DialogCloseEvent());
-            });
-            JFXButton noButton = new JFXButton(i18n("launcher.agreement.decline"));
-            noButton.getStyleClass().add("dialog-cancel");
-            noButton.setOnAction(e -> javafx.application.Platform.exit());
-            agreementPane.setActions(agreementLink, yesButton, noButton);
-            Controllers.dialog(agreementPane);
+        // PCL2 FormMain.xaml.vb (FormMain_Loaded, "EULA 提示"): a MyMsgBox
+        // titled 协议授权 with three MyButtons 同意 / 拒绝 / 查看用户协议与
+        // 免责声明. The third button opens the EULA page WITHOUT dismissing
+        // the card (Button3Action); 同意 stores SystemEulaVersion, 拒绝 calls
+        // EndProgram. A first run (version 0) and an updated agreement
+        // (0 < version < EulaVersion) show different captions.
+        final int eulaVersion = 2;
+        int currentEula = SettingsManager.userState().agreementVersionProperty().get();
+        if (currentEula < eulaVersion) {
+            String caption = currentEula == 0
+                    ? i18n("hpcl.eula.hint")
+                    : i18n("hpcl.eula.updated");
+            MessageDialogPane agreement = new MessageDialogPane.Builder(
+                    caption, i18n("hpcl.eula.title"), MessageType.QUESTION)
+                    // Btn1 同意 (Highlight when Btn2 exists), Btn2 拒绝,
+                    // Btn3 查看协议 — same left-to-right order as MyMsgText.
+                    .addAction(i18n("launcher.agreement.accept"),
+                            () -> userState().agreementVersionProperty().set(eulaVersion))
+                    .addCancel(i18n("launcher.agreement.decline"),
+                            () -> javafx.application.Platform.exit())
+                    .addExtraAction(i18n("hpcl.eula.view"),
+                            () -> FXUtils.openLink(Metadata.EULA_URL))
+                    .build();
+            Controllers.dialog(agreement);
         }
 
         aprilFools:

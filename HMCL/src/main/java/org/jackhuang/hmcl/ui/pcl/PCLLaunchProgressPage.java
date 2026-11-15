@@ -259,6 +259,7 @@ public final class PCLLaunchProgressPage extends BorderPane implements Decorator
         scroll.getStyleClass().add("hpcl-launch-scroll");
         scroll.setFitToWidth(true);
         scroll.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        PCLScrollViewer.install(scroll);
 
         VBox flow = new VBox(15);
         flow.getStyleClass().add("hpcl-launch-flow");

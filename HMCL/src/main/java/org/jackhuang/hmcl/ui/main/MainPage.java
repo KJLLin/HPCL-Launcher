@@ -61,7 +61,9 @@ import org.jackhuang.hmcl.ui.animation.AnimationUtils;
 import org.jackhuang.hmcl.ui.construct.MessageDialogPane;
 import org.jackhuang.hmcl.ui.construct.TwoLineListItem;
 import org.jackhuang.hmcl.ui.decorator.DecoratorPage;
+import org.jackhuang.hmcl.ui.pcl.PCLCollapsibleCard;
 import org.jackhuang.hmcl.ui.pcl.PCLLoading;
+import org.jackhuang.hmcl.ui.pcl.PCLScrollViewer;
 import org.jackhuang.hmcl.ui.pcl.PCLTheme;
 import org.jackhuang.hmcl.ui.versions.GameListPopupMenu;
 import org.jackhuang.hmcl.ui.versions.Versions;
@@ -76,6 +78,8 @@ import org.jackhuang.hmcl.util.platform.Platform;
 import org.jackhuang.hmcl.util.versioning.GameVersionNumber;
 
 import java.io.IOException;
+import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -134,6 +138,8 @@ public final class MainPage extends StackPane implements DecoratorPage {
     private Timeline launchProgressTimer;
     private Label launchLabel;
     private Label currentLabel;
+    /// PCL `PageLaunchRight.PanLog`: a live, read-only launch log card.
+    private Label launchLog;
 
     private RemoteVersion lastShownVersion;
 
@@ -218,14 +224,25 @@ public final class MainPage extends StackPane implements DecoratorPage {
             HBox.setHgrow(launchButton, Priority.ALWAYS);
             PCLTheme.attachButtonHover(launchButton);
             {
+                // PCL2 `BtnLaunch Padding="30,0,30,15"`: the 17px title sits
+                // slightly above centre and `LabVersion` (11px) is pinned near
+                // the bottom edge. A fixed-height VBox gives the two lines a
+                // real 46px slot; a StackPane would collapse to one line's
+                // preferred height and overlap them.
                 VBox graphic = new VBox();
                 graphic.getStyleClass().add("hpcl-launch-graphic");
                 graphic.setAlignment(Pos.CENTER);
+                graphic.setMinHeight(46);
+                graphic.setPrefHeight(46);
+                graphic.setMaxHeight(46);
                 launchLabel = new Label();
                 launchLabel.getStyleClass().add("hpcl-launch-title");
                 currentLabel = new Label();
                 // PCL2 `LabVersion`: 11px grey text pinned to the button bottom.
                 currentLabel.getStyleClass().add("hpcl-launch-version");
+                currentLabel.setMaxWidth(Double.MAX_VALUE);
+                currentLabel.setAlignment(Pos.CENTER);
+                currentLabel.setTextOverrun(javafx.scene.control.OverrunStyle.CENTER_ELLIPSIS);
 
                 FXUtils.onChangeAndOperate(currentGameProperty(), new Consumer<>() {
                     private Tooltip tooltip;
@@ -233,9 +250,11 @@ public final class MainPage extends StackPane implements DecoratorPage {
                     @Override
                     public void accept(String currentGame) {
                         if (currentGame == null) {
-                            launchLabel.setText(i18n("version.launch.empty"));
-                            currentLabel.setText(null);
-                            graphic.getChildren().setAll(launchLabel);
+                            // PCL2 `RefreshButtonsUI` Case 2: "下载游戏" and
+                            // LabVersion = "未找到可用的游戏版本" pinned below.
+                            launchLabel.setText(i18n("hpcl.launch.download"));
+                            currentLabel.setText(i18n("hpcl.launch.no.version"));
+                            graphic.getChildren().setAll(launchLabel, currentLabel);
                             FXUtils.setOnActionWithCooldown(launchButton, () -> {
                                 playLaunchFeedback(launchButton);
                                 MainPage.this.launchNoGame();
@@ -351,8 +370,8 @@ public final class MainPage extends StackPane implements DecoratorPage {
         VBox aboutCard = PCLTheme.createFlowCard(i18n("about"),
                 aboutText, aboutVersion, aboutLinks);
 
-        // PCL `PageLaunchRight.PanCustom` preset "你知道吗": a card with a
-        // random launcher tip and a refresh MyIconButton in the top-right.
+        // PCL `MyCard CanSwap=True`: the "你知道吗" card folds when its
+        // heading is clicked, with PCL's 150ms height ease and 250ms chevron.
         Label tipText = new Label(randomLaunchHint());
         tipText.setWrapText(true);
         tipText.setMaxWidth(Double.MAX_VALUE);
@@ -366,22 +385,26 @@ public final class MainPage extends StackPane implements DecoratorPage {
             tipText.setText(randomLaunchHint());
             PCLTheme.playTextAppear(tipText, tipText.getText());
         });
-        javafx.scene.layout.StackPane tipHead = new javafx.scene.layout.StackPane();
-        Label tipTitle = new Label("你知道吗？");
-        tipTitle.getStyleClass().add("hpcl-card-title");
-        javafx.scene.layout.StackPane.setAlignment(tipTitle, Pos.CENTER_LEFT);
-        javafx.scene.layout.StackPane.setAlignment(tipRefresh, Pos.CENTER_RIGHT);
-        tipHead.getChildren().setAll(tipTitle, tipRefresh);
-        tipHead.setMaxWidth(Double.MAX_VALUE);
-        VBox tipCard = PCLTheme.createCard(tipHead, tipText);
-        tipCard.getStyleClass().add("hpcl-flow-card");
+        PCLCollapsibleCard tipCard = new PCLCollapsibleCard(i18n("hpcl.home.tip"), tipText);
+        tipCard.setTitleAccessory(tipRefresh);
 
-        cardFlow.getChildren().setAll(hint, versionCard, quickCard, tipCard, aboutCard);
+        // PCL `PageLaunchRight.xaml` PanLog: the fixed "启动日志" MyCard,
+        // which PCL declares with a read-only MyTextBox. HPCL feeds it real
+        // launch events instead of a static placeholder.
+        launchLog = new Label(i18n("hpcl.home.log.ready"));
+        launchLog.setWrapText(true);
+        launchLog.setMaxWidth(Double.MAX_VALUE);
+        launchLog.getStyleClass().add("hpcl-launch-log-text");
+        PCLCollapsibleCard logCard = new PCLCollapsibleCard(i18n("hpcl.home.log"), launchLog);
+
+        cardFlow.getChildren().setAll(hint, versionCard, quickCard, tipCard, logCard, aboutCard);
 
         ScrollPane scroll = new ScrollPane(cardFlow);
         scroll.setFitToWidth(true);
         scroll.getStyleClass().add("hpcl-card-flow-scroll");
-        FXUtils.smoothScrolling(scroll);
+        // PCL2 `MyScrollViewer`: 300ms OutFluent(6) easing toward a target
+        // offset, plus `ScrollChanged -> BtnExtraBack.ShowRefresh()`.
+        PCLScrollViewer.installPrimary(scroll);
         StackPane.setAlignment(scroll, Pos.TOP_LEFT);
         // No PCL2 channel banner: the card flow starts at the top.
         StackPane.setMargin(scroll, new Insets(0, 0, 0, 0));
@@ -691,6 +714,7 @@ public final class MainPage extends StackPane implements DecoratorPage {
     /// which is opened by LauncherHelper with the real TaskExecutor; the old
     /// synthetic left-pane overlay is therefore no longer played here.
     private void playLaunchFeedback(JFXButton launchButton) {
+        appendLaunchLog(i18n("hpcl.home.log.launching", getCurrentGame()));
         PCLTheme.playLaunchStart(launchButton, launchProgress, launchLabel, currentLabel,
                 i18n("hpcl.launch.starting"));
         javafx.animation.PauseTransition restore =
@@ -699,10 +723,31 @@ public final class MainPage extends StackPane implements DecoratorPage {
             PCLTheme.stopLaunchStart(launchButton, launchProgress, launchLabel, currentLabel);
             // Re-apply the current version label after restoring.
             String game = getCurrentGame();
-            if (launchLabel != null) launchLabel.setText(game == null ? i18n("version.launch.empty") : i18n("version.launch"));
-            if (currentLabel != null) currentLabel.setText(game);
+            if (launchLabel != null) launchLabel.setText(game == null ? i18n("hpcl.launch.download") : i18n("version.launch"));
+            if (currentLabel != null) currentLabel.setText(game == null ? i18n("hpcl.launch.no.version") : game);
+            appendLaunchLog(i18n("hpcl.home.log.finished"));
         });
         restore.play();
+    }
+
+    /// PCL `PanLog`: appends a timestamped line, keeping the card compact by
+    /// retaining only the seven most recent entries.
+    private void appendLaunchLog(String message) {
+        if (launchLog == null) return;
+        String previous = launchLog.getText();
+        String stamp = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
+        String line = "[" + stamp + "] " + message;
+        if (previous == null || previous.isBlank()
+                || previous.equals(i18n("hpcl.home.log.ready"))) {
+            launchLog.setText(line);
+            return;
+        }
+        String[] lines = previous.split("\n", -1);
+        int from = Math.max(0, lines.length - 6);
+        StringBuilder builder = new StringBuilder();
+        for (int i = from; i < lines.length; i++) builder.append(lines[i]).append('\n');
+        builder.append(line);
+        launchLog.setText(builder.toString());
     }
 
     /// Creates a PCL-style clickable quick-entry card.

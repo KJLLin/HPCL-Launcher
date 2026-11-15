@@ -18,6 +18,7 @@
 package org.jackhuang.hmcl.ui;
 
 import com.jfoenix.controls.JFXDialog;
+import com.jfoenix.controls.JFXDialogLayout;
 import javafx.application.Platform;
 import javafx.beans.value.ChangeListener;
 import javafx.beans.value.ObservableValue;
@@ -28,6 +29,7 @@ import org.jackhuang.hmcl.ui.animation.AnimationUtils;
 import org.jackhuang.hmcl.ui.construct.DialogAware;
 import org.jackhuang.hmcl.ui.construct.DialogCloseEvent;
 import org.jackhuang.hmcl.ui.construct.JFXDialogPane;
+import org.jackhuang.hmcl.ui.construct.MessageDialogPane;
 import org.jackhuang.hmcl.ui.decorator.Decorator;
 import org.jetbrains.annotations.Nullable;
 
@@ -101,6 +103,38 @@ public final class DialogUtils {
         EventHandler<DialogCloseEvent> handler = event -> close(content);
         content.getProperties().put(PROPERTY_DIALOG_CLOSE_HANDLER, handler);
         content.addEventHandler(DialogCloseEvent.CLOSE, handler);
+
+        // ---- PCL2 MyMsg* fidelity -------------------------------------
+        // MyMsgText.xaml.vb Loaded fades FrmMain.PanMsg to MyColor(90,0,0,0)
+        // = 35% black, or MyColor(140,80,0,0) = dark red when IsWarn.
+        // JFXDialog hard-codes a 10%-black *inline* Background in
+        // initialize(), which outranks a stylesheet; override via setStyle.
+        boolean warn = content.getStyleClass().contains("hpcl-msg-warn");
+        dialog.setStyle("-fx-background-color: " +
+                (warn ? "rgba(80, 0, 0, 0.55)" : "rgba(0, 0, 0, 0.35)") + ";");
+        // All PCL message boxes (MyMsgText / MyMsgSelect / MyMsgInput) share
+        // the same Loaded animation: the card starts at -4deg / Y+40 / opacity
+        // 0 and settles with OutBack / OutFluent. MessageDialogPane already
+        // animates itself, so only drive it for the other dialog types
+        // (JFXDialogLayout-based inputs, prompts, account pages, ...).
+        Platform.runLater(() -> {
+            // PCL2 animates its message cards (MyMsgText/Select/Input), not
+            // the multi-step wizard panes (TransitionPane). JFXDialogLayout
+            // and MessageDialogPane are the message cards everywhere else.
+            boolean messageCard = content instanceof JFXDialogLayout
+                    || content instanceof MessageDialogPane
+                    || content.getStyleClass().contains("jfx-dialog-layout");
+            if (messageCard && !Boolean.TRUE.equals(content.getProperties().get("hpcl.dialog.animated"))) {
+                org.jackhuang.hmcl.ui.pcl.PCLTheme.playDialogEnter(content);
+            }
+            // Controls/MyButton.xaml.vb: every dialog button is a MyButton
+            // with a 0.955 press scale. Apply to stock JFoenix buttons too.
+            content.lookupAll(".button").forEach(btn -> {
+                if (Boolean.TRUE.equals(btn.getProperties().get("hpcl.pcl.press"))) return;
+                btn.getProperties().put("hpcl.pcl.press", Boolean.TRUE);
+                org.jackhuang.hmcl.ui.pcl.PCLTheme.attachPCLButtonPress(btn);
+            });
+        });
 
         handleDialogShown(dialog, content);
     }
