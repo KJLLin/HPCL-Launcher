@@ -39,6 +39,7 @@ import org.jackhuang.hmcl.auth.AuthenticationException;
 import org.jackhuang.hmcl.auth.OAuth;
 import org.jackhuang.hmcl.auth.microsoft.MicrosoftAccount;
 import org.jackhuang.hmcl.auth.yggdrasil.YggdrasilService;
+import org.jackhuang.hmcl.Metadata;
 import org.jackhuang.hmcl.setting.Accounts;
 import org.jackhuang.hmcl.task.Schedulers;
 import org.jackhuang.hmcl.task.Task;
@@ -142,9 +143,16 @@ public class MicrosoftAccountLoginPane extends JFXDialogLayout implements Dialog
         rootContainer.setAlignment(Pos.TOP_CENTER);
 
         if (Accounts.OAUTH_CALLBACK.getClientId().isEmpty()) {
-            var snapshotHint = new HintPane(MessageDialogPane.MessageType.WARNING);
-            snapshotHint.setSegment(i18n("account.methods.microsoft.snapshot"));
-            rootContainer.getChildren().add(snapshotHint);
+            // HPCL ships without a Microsoft OAuth client id. The upstream hint
+            // points users at the official HMCL download, which is misleading
+            // for a fork: explain the real reason and the usable alternatives.
+            var credentialHint = new HintPane(MessageDialogPane.MessageType.INFO);
+            credentialHint.setSegment(i18n("hpcl.credentials.microsoft.disabled"));
+            rootContainer.getChildren().add(credentialHint);
+            var guide = new HintPane(MessageDialogPane.MessageType.INFO);
+            guide.setSegment("<a href=\"" + Metadata.REPOSITORY_URL + "#credentials\">"
+                    + i18n("hpcl.credentials.guide") + "</a>");
+            rootContainer.getChildren().add(guide);
             btnLogin.setDisable(true);
             loginButtonSpinner.setLoading(false);
             return;

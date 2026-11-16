@@ -41,24 +41,25 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.zip.GZIPOutputStream;
 
-/// Creates a Debian package for the current HMCL channel.
+/// Creates a Debian package for the current HPCL channel.
 ///
 /// ## Package layout
 ///
 /// The generated `data.tar.gz` contains four installed artifacts:
 ///
-/// - the bundled HMCL shell launcher under `/usr/share/java/hmcl/`
+/// - the bundled HPCL shell launcher under `/usr/share/java/hpcl/`
 /// - a channel-specific command under `/usr/bin/`
 /// - a desktop entry under `/usr/share/applications/`
-/// - the HMCL icon under `/usr/share/icons/hicolor/256x256/apps/`
+/// - the HPCL icon under `/usr/share/icons/hicolor/256x256/apps/`
 ///
 /// ## Channel commands and aliases
 ///
-/// Every package installs a channel-specific executable such as `hmcl-stable`
-/// or `hmcl-beta`. The generic `hmcl` command is intentionally not shipped as a
+/// Every package installs a channel-specific executable such as `hpcl-stable`
+/// or `hpcl-beta`. The generic `hpcl` command is intentionally not shipped as a
 /// plain file. Instead, maintainer scripts register the channel command into
-/// the shared `hmcl` alternatives group so multiple channel packages can
-/// coexist without file conflicts.
+/// the shared `hpcl` alternatives group so multiple channel packages can
+/// coexist without file conflicts. HPCL uses its own group name so it never
+/// collides with an upstream HMCL installation.
 ///
 /// @author Glavo
 public abstract class CreateDeb extends DefaultTask {
@@ -97,19 +98,19 @@ public abstract class CreateDeb extends DefaultTask {
     }
 
     private String getLauncherPath() {
-        return "/usr/bin/hmcl-" + getCurrentTypeName();
+        return "/usr/bin/hpcl-" + getCurrentTypeName();
     }
 
     private String getTargetPath() {
-        return "/usr/share/java/hmcl/" + getAppShFile().getAsFile().get().getName();
+        return "/usr/share/java/hpcl/" + getAppShFile().getAsFile().get().getName();
     }
 
     private String getDesktopFilePath() {
-        return "/usr/share/applications/hmcl-%s.desktop".formatted(getCurrentTypeName());
+        return "/usr/share/applications/hpcl-%s.desktop".formatted(getCurrentTypeName());
     }
 
     private String getIconTargetPath() {
-        return "/usr/share/icons/hicolor/256x256/apps/hmcl-%s.png".formatted(getCurrentTypeName());
+        return "/usr/share/icons/hicolor/256x256/apps/hpcl-%s.png".formatted(getCurrentTypeName());
     }
 
     /// Ensures parent directories exist in the tar stream before child entries are written.
@@ -228,34 +229,34 @@ public abstract class CreateDeb extends DefaultTask {
                 Priority: optional
                 Architecture: all
                 Installed-Size: %d
-                Maintainer: Glavo <zjx001202@gmail.com>
-                Description: Hello Minecraft! Launcher
-                Homepage: https://github.com/HMCL-dev/HMCL
+                Maintainer: KJLLin <KJLLin@users.noreply.github.com>
+                Description: HPCL Launcher - a PCL2-style Minecraft launcher
+                Homepage: https://github.com/KJLLin/HPCL-Launcher
                 """.formatted(getCurrentType().getPackageName(), getVersion().get(), Math.max(installedSize, 1)) + "\n";
     }
 
-    private static final String COMMON_LAUNCHER_PATH = "/usr/bin/hmcl";
+    private static final String COMMON_LAUNCHER_PATH = "/usr/bin/hpcl";
 
-    /// Registers the channel command into the shared `hmcl` alternatives group.
+    /// Registers the channel command into the shared `hpcl` alternatives group.
     private String getPostinst() {
         return """
                 #!/bin/sh
                 set -e
                 
                 if [ "$1" = configure ]; then
-                    update-alternatives --install %s hmcl %s %d
+                    update-alternatives --install %s hpcl %s %d
                 fi
                 """.formatted(COMMON_LAUNCHER_PATH, getLauncherPath(), getCurrentType().getAlternativesPriority());
     }
 
-    /// Removes the channel command from the shared `hmcl` alternatives group.
+    /// Removes the channel command from the shared `hpcl` alternatives group.
     private String getPrerm() {
         return """
                 #!/bin/sh
                 set -e
                 
                 if [ "$1" = remove ] || [ "$1" = deconfigure ]; then
-                    update-alternatives --remove hmcl %s
+                    update-alternatives --remove hpcl %s
                 fi
                 """.formatted(getLauncherPath());
     }
@@ -288,7 +289,7 @@ public abstract class CreateDeb extends DefaultTask {
                 [Desktop Entry]
                 Type=Application
                 Name=%s
-                Comment=Hello Minecraft! Launcher
+                Comment=HPCL Launcher
                 Exec=%s
                 Icon=%s
                 Terminal=false

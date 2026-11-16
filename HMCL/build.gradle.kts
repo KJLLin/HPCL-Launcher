@@ -31,7 +31,11 @@ val projectConfig = PropertiesUtils.load(rootProject.file("config/project.proper
 
 val isOfficial = JenkinsUtils.IS_ON_CI || GitHubActionUtils.IS_ON_OFFICIAL_REPO
 
-val versionType = System.getenv("VERSION_TYPE") ?: if (isOfficial) "nightly" else "unofficial"
+// HPCL is a community fork: when no explicit VERSION_TYPE is supplied we label
+// the build `dev` (in development, not a fake stable release). This also keeps
+// the deb channel out of NIGHTLY without colliding with upstream's stable `hmcl`
+// package. CI / maintainers can still override with VERSION_TYPE=stable|dev|nightly.
+val versionType = System.getenv("VERSION_TYPE") ?: if (isOfficial) "nightly" else "dev"
 val versionRoot = System.getenv("VERSION_ROOT") ?: projectConfig.getProperty("versionRoot") ?: "3"
 
 val microsoftAuthId = System.getenv("MICROSOFT_AUTH_ID") ?: ""
@@ -53,7 +57,7 @@ if (buildNumber != null) {
     } else if (isOfficial) {
         "$versionRoot.dev-$shortCommit"
     } else {
-        "$versionRoot.unofficial-$shortCommit"
+        "$versionRoot.dev-$shortCommit"
     }
 }
 

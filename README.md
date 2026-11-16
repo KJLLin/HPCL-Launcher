@@ -100,8 +100,57 @@
 
 - exe 壳模板为 `config/launcher/HMCLauncher.exe`（已随仓库提供，以 `git add -f` 有意纳入，`*.exe` 的忽略规则对其不适用）；该文件缺失时 `makeExecutables` 无法生成 exe
 - 入口类：`org.jackhuang.hmcl.Main`
-- 版本号来自 `hmcl.version`；`VERSION_TYPE` 环境变量可设 `stable / nightly / dev`（未设置时非官方构建标记为 `unofficial`）
-- CI 的微软登录 / CurseForge 需要仓库 Secrets：`MICROSOFT_AUTH_ID`、`CURSEFORGE_API_KEY`（本地构建可不配置，对应功能不可用）
+- 版本号来自 `hmcl.version`；`VERSION_TYPE` 环境变量可设 `stable / nightly / dev`（未设置时默认标记为 `dev`，即「开发中，尚无正式版」；不会伪装成 `stable`）
+- 微软登录 / CurseForge 需要构建时注入 `MICROSOFT_AUTH_ID`、`CURSEFORGE_API_KEY`（见下方「服务凭据」）；未配置时对应功能不可用，但 Modrinth、离线账户、外置登录均正常
+
+<a id="credentials"></a>
+
+## 服务凭据（自行注册，不随发行版内置）
+
+HPCL 是社区分支，**不内置 HMCL 官方的微软 OAuth 客户端 ID 与 CurseForge API Key**。这两项属于官方账号的私有凭据，复用会违反服务条款、消耗官方配额，且官方可随时吊销。因此公开发布的版本中两者为空：微软登录按钮会明确说明原因并禁用，CurseForge 下载源不出现（**Modrinth 完全可用**）。这不是安装损坏。
+
+如需启用，请自己注册后在**构建时**注入（值不写入本仓库、不提交、不写进下载站或 Release 正文）：
+
+### 1. 微软登录 `MICROSOFT_AUTH_ID`
+
+1. 打开 [Azure 门户 → Microsoft Entra ID → 应用注册 → 新注册](https://portal.azure.com/#view/Microsoft_AAD_RegisteredApps/ApplicationsListBlade)。
+2. 名称随意；**受支持的账户类型**选「**仅个人 Microsoft 账户**」（Minecraft 账户是消费者账户，代码使用 `consumers` 租户，`OAuth.MICROSOFT` 指向 `login.live.com` / `login.microsoftonline.com/consumers`）。
+3. **重定向 URI**：平台选「移动和桌面应用程序」，添加 `http://localhost/auth-response`。本机回环监听端口为 `29111–29115`（`OAuthServer.startServer`），微软对 localhost 重定向**忽略端口**，故只需这一条。
+4. 创建后进入「身份验证 → 高级设置」，将「**允许公共客户端流**」设为**是**（设备代码流，无 client secret）。API 权限无需添加：登录时动态请求 `XboxLive.signin offline_access`（`MicrosoftService.SCOPE`）。
+5. 复制「**应用程序(客户端) ID**」（36 位 GUID）。
+6. **重要**：新建的 Azure 应用在通过 Mojang 审核前，`api.minecraftservices.com/authentication/login_with_xbox` 会返回 403 `Invalid app registration`。需按 [Minecraft Java App ID 审核](https://aka.ms/mce-reviewappid) 提交客户端 ID、应用名、项目地址与用途说明，审核通常需数天到数周。这是自建凭据最常见的「配了还是登不上」原因。
+
+### 2. CurseForge `CURSEFORGE_API_KEY`
+
+1. 注册 / 登录 [CurseForge](https://www.curseforge.com/) 账号。
+2. 打开 [CurseForge API Console](https://console.curseforge.com/)，接受 API 服务条款。
+3. 在「API Keys」创建新密钥（60 位），**立即复制**。
+4. 该密钥用于 `https://api.curseforge.com` 的 `x-api-key` 请求头（`CurseForgeRemoteAddonRepository.withApiKey`）。请勿提交到版本库。
+
+### 3. 注入方式
+
+```bash
+# 构建时注入（推荐；值只存在于本机构建产物中）
+MICROSOFT_AUTH_ID='你的客户端ID' \
+CURSEFORGE_API_KEY='你的APIKey' \
+VERSION_TYPE=dev \
+./gradlew :HMCL:build --no-daemon --parallel
+```
+
+发布时把两个值放到 CI 的 **Repository Secrets**（`release.yml` 已引用 `secrets.MICROSOFT_AUTH_ID` / `secrets.CURSEFORGE_API_KEY`），不要放进 `vars` 或代码。
+
+**临时覆盖（不重新打包）**：两个值也可在运行时用 JVM 系统属性覆盖，便于先验证凭据是否可用：
+
+```bash
+java -Dhmcl.microsoft.auth.id='你的客户端ID' \
+     -Dhmcl.curseforge.apikey='你的APIKey' \
+     --add-modules javafx.controls,javafx.fxml,javafx.swing,javafx.web \
+     -jar HPCL-3.16.SNAPSHOT.jar
+```
+
+代码优先级为 `System.getProperty` > `assets/hmcl.properties`（`OAuthServer.Factory.getClientId`、`CurseForgeRemoteAddonRepository.API_KEY`）。
+
+> **说明**：`unofficial.hint` 提示由 `IntegrityChecker.isOfficial()`（签名校验 / `GITHUB_SHA`）决定，与 `VERSION_TYPE` 无关，改成 `dev` 也不会消失。HPCL 作为 fork 显示该提示是诚实的，但文案已改为中性的来源与校验说明，不再写「请下载官方版本」这类误导内容。
 
 ## 运行
 

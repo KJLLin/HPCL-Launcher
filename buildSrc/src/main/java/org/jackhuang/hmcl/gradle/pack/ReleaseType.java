@@ -17,15 +17,15 @@
  */
 package org.jackhuang.hmcl.gradle.pack;
 
-/// Debian packaging metadata for one HMCL release type.
+/// Debian packaging metadata for one HPCL release type.
 ///
 /// The package name, installed command, desktop file, and alternatives
 /// priority are intentionally centralized here so `CreateDeb` can stay focused
 /// on archive layout instead of duplicating channel-specific branching.
 public enum ReleaseType {
-    STABLE("stable", "hmcl", "HMCL", 100),
-    DEVELOPMENT("beta", "hmcl-beta", "HMCL (Beta)", 200),
-    NIGHTLY("nightly", "hmcl-nightly", "HMCL (Nightly)", 300);
+    STABLE("stable", "hpcl", "HPCL Launcher", 100),
+    DEVELOPMENT("beta", "hpcl-beta", "HPCL Launcher (Dev)", 200),
+    NIGHTLY("nightly", "hpcl-nightly", "HPCL Launcher (Nightly)", 300);
 
     private final String name;
     private final String packageName;

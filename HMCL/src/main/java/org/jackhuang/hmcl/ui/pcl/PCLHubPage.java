@@ -303,11 +303,27 @@ public final class PCLHubPage extends BorderPane implements DecoratorPage {
                 statRow("构建通道", Metadata.BUILD_CHANNEL),
                 link(I18n.i18n("hpcl.about.repository"), Metadata.REPOSITORY_URL),
                 link("开源许可 · GPLv3", Metadata.EULA_URL)));
+        buildCredentials(out);
         out.add(card("致谢",
                 text("感谢 HMCL 与 PCL 开源社区提供的实现参考。本启动器仅复用其设计参数，代码为独立实现。", "hpcl-hub-text"),
                 link("HMCL 项目主页", Metadata.PUBLISH_URL),
                 actionLink("查看许可证与依赖", () ->
                         Controllers.navigate(new org.jackhuang.hmcl.ui.main.AboutPage()))));
+    }
+
+    /// Shows which third-party integrations are live in this build. HPCL ships
+    /// without upstream's private credentials, so the state is reported honestly
+    /// instead of hiding the entries and looking like a broken install.
+    private static void buildCredentials(List<Node> out) {
+        boolean microsoft = !Accounts.OAUTH_CALLBACK.getClientId().isEmpty();
+        boolean curseForge = org.jackhuang.hmcl.addon.repository.CurseForgeRemoteAddonRepository.isAvailable();
+        String ok = I18n.i18n("hpcl.credentials.status.configured");
+        String missing = I18n.i18n("hpcl.credentials.status.missing");
+        out.add(card(I18n.i18n("hpcl.credentials.title"),
+                text(I18n.i18n("hpcl.credentials.notice"), "hpcl-hub-text"),
+                statRow(I18n.i18n("hpcl.credentials.microsoft.signin"), microsoft ? ok : missing),
+                statRow(I18n.i18n("hpcl.credentials.curseforge"), curseForge ? ok : missing),
+                link(I18n.i18n("hpcl.credentials.guide"), Metadata.REPOSITORY_URL + "#credentials")));
     }
 
     private static HBox statRow(String key, String value) {

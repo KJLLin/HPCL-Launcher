@@ -81,6 +81,10 @@ public class DownloadListPage extends Control implements DecoratorPage, VersionP
     private final DownloadPage.DownloadCallback callback;
     private boolean searchInitialized = false;
     protected final BooleanProperty supportChinese = new SimpleBooleanProperty();
+    /// Optional informational banner rendered above the search pane. HPCL uses
+    /// it to explain why a download source (e.g. CurseForge) is unavailable
+    /// instead of silently disappearing and looking like a broken install.
+    private final StringProperty notice = new SimpleStringProperty(this, "notice", "");
     private final ObservableList<Node> actions = FXCollections.observableArrayList();
     protected final ListProperty<String> downloadSources = new SimpleListProperty<>(this, "downloadSources", FXCollections.observableArrayList());
     protected final StringProperty downloadSource = new SimpleStringProperty();
@@ -90,6 +94,10 @@ public class DownloadListPage extends Control implements DecoratorPage, VersionP
     private final DownloadProvider downloadProvider;
 
     private Runnable retrySearch;
+
+    protected final void setNotice(String value) {
+        notice.set(value == null ? "" : value);
+    }
 
     public DownloadListPage(RemoteAddonRepository repository) {
         this(repository, null, false);
@@ -255,9 +263,17 @@ public class DownloadListPage extends Control implements DecoratorPage, VersionP
             BorderPane pane = new BorderPane();
 
             GridPane searchPane = new GridPane();
-            pane.setTop(searchPane);
             searchPane.getStyleClass().addAll("card");
-            BorderPane.setMargin(searchPane, new Insets(10, 10, 0, 10));
+
+            VBox topBox = new VBox(8);
+            HintPane noticePane = new HintPane(MessageDialogPane.MessageType.INFO);
+            noticePane.setSegment(control.notice.get());
+            control.notice.addListener((obs, oldValue, newValue) -> noticePane.setSegment(newValue));
+            noticePane.visibleProperty().bind(control.notice.isNotEmpty());
+            noticePane.managedProperty().bind(control.notice.isNotEmpty());
+            topBox.getChildren().setAll(noticePane, searchPane);
+            pane.setTop(topBox);
+            BorderPane.setMargin(topBox, new Insets(10, 10, 0, 10));
 
             ColumnConstraints nameColumn = new ColumnConstraints();
             nameColumn.setMinWidth(USE_PREF_SIZE);

@@ -124,7 +124,7 @@ public final class AccountListItemSkin extends SkinBase<AccountListItem> {
         spinnerRefresh.setPrefSize(30.0, 30.0);
         if (skinnable.getAccount() instanceof MicrosoftAccount && Accounts.OAUTH_CALLBACK.getClientId().isEmpty()) {
             btnRefresh.setDisable(true);
-            FXUtils.installFastTooltip(spinnerRefresh, i18n("account.methods.microsoft.snapshot.tooltip"));
+            FXUtils.installFastTooltip(spinnerRefresh, i18n("hpcl.credentials.microsoft.disabled.tooltip"));
         }
         btnRefresh.setOnAction(e -> {
             spinnerRefresh.showSpinner();

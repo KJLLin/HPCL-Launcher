@@ -76,6 +76,12 @@ public final class HMCLLocalizedDownloadListPage extends DownloadListPage {
         downloadSources.setAll("addon.modrinth");
         if (supportedCurseForge) {
             downloadSources.add("addon.curseforge");
+        } else if (curseForge != null) {
+            // HPCL ships without a CurseForge API key. Tell the user explicitly
+            // instead of silently omitting the source, which reads as a bug.
+            setNotice(I18n.i18n("hpcl.credentials.notice") + " <a href=\""
+                    + org.jackhuang.hmcl.Metadata.REPOSITORY_URL + "#credentials\">"
+                    + I18n.i18n("hpcl.credentials.guide") + "</a>");
         }
 
         if ("curseforge".equalsIgnoreCase(settings().defaultAddonSourceProperty().get())) {
