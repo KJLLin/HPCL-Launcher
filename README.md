@@ -133,11 +133,11 @@ HPCL 是社区分支，**不内置 HMCL 官方的微软 OAuth 客户端 ID 与 C
 # 构建时注入（推荐；值只存在于本机构建产物中）
 MICROSOFT_AUTH_ID='你的客户端ID' \
 CURSEFORGE_API_KEY='你的APIKey' \
-VERSION_TYPE=dev \
+VERSION_TYPE=stable \
 ./gradlew :HMCL:build --no-daemon --parallel
 ```
 
-发布时把两个值放到 CI 的 **Repository Secrets**（`release.yml` 已引用 `secrets.MICROSOFT_AUTH_ID` / `secrets.CURSEFORGE_API_KEY`），不要放进 `vars` 或代码。
+`VERSION_TYPE` 可选 `stable` / `dev` / `nightly`，只影响版本号与 deb 包名，与凭据注入无关。发布时把两个值放到 CI 的 **Repository Secrets**（`release.yml` 已引用 `secrets.MICROSOFT_AUTH_ID` / `secrets.CURSEFORGE_API_KEY`），不要放进 `vars` 或代码。
 
 **临时覆盖（不重新打包）**：两个值也可在运行时用 JVM 系统属性覆盖，便于先验证凭据是否可用：
 
@@ -145,7 +145,7 @@ VERSION_TYPE=dev \
 java -Dhmcl.microsoft.auth.id='你的客户端ID' \
      -Dhmcl.curseforge.apikey='你的APIKey' \
      --add-modules javafx.controls,javafx.fxml,javafx.swing,javafx.web \
-     -jar HPCL-3.16.SNAPSHOT.jar
+     -jar HPCL-3.17.0.jar
 ```
 
 代码优先级为 `System.getProperty` > `assets/hmcl.properties`（`OAuthServer.Factory.getClientId`、`CurseForgeRemoteAddonRepository.API_KEY`）。
@@ -160,8 +160,8 @@ HPCL 是 fork，**不连接 HMCL 官方更新端点**（否则会被官方包覆
 
 | 通道 | 设置值 | 匹配的 Release | 当前状态 |
 |---|---|---|---|
-| **稳定版** | `STABLE` | `prerelease=false`，且 tag 不含 `SNAPSHOT / dev / beta / alpha / nightly / rc` 等预览标记 | 暂未发布正式版。手动检查会提示「当前更新通道暂无可用版本」，自动检查静默 |
-| **测试版** | `BETA`（预览构建默认） | 所有已发布 Release，含 GitHub pre-release | `v3.16.SNAPSHOT` 即在此通道 |
+| **稳定版** | `STABLE`（stable 构建默认） | `prerelease=false`，且 tag 不含 `SNAPSHOT / dev / beta / alpha / nightly / rc` 等预览标记 | `v3.17.0` 为第一个正式版 |
+| **测试版** | `BETA`（预览构建默认） | 所有已发布 Release，含 GitHub pre-release | `v3.16.SNAPSHOT` 等预发布在此通道 |
 
 > 通道判定同时看 GitHub 的 `prerelease` 标记和 tag 中的预览词，避免有人忘了勾 pre-release 却把 SNAPSHOT 发到稳定通道。BETA 能看到稳定版，STABLE 永远不会收到预发布。
 
@@ -180,7 +180,7 @@ HPCL 是 fork，**不连接 HMCL 官方更新端点**（否则会被官方包覆
 
 ```bash
 # 直接运行 fat jar
-java -jar HMCL/build/libs/HPCL-3.16.SNAPSHOT.jar
+java -jar HMCL/build/libs/HPCL-3.17.0.jar
 
 # 或从源码启动（开发调试）
 ./gradlew :HMCL:run

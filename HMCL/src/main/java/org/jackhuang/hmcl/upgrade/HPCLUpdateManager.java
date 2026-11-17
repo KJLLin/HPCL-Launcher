@@ -187,11 +187,16 @@ public final class HPCLUpdateManager {
         }
         String sums = get(release.sums().url(), CHECK_TIMEOUT);
         String expectedHash = findHash(sums, target.name());
+        if (expectedHash == null) {
+            // Refuse to offer a build we cannot verify. A missing entry used to
+            // fall through to an unverified download.
+            throw new IOException("No SHA-256 entry for " + target.name() + " in SHA256SUMS.txt");
+        }
         boolean newer = isNewerTag(release.tag());
         // Same tag can be republished (a rebuilt r12 under the same version).
         // Comparing the published checksum against the running package catches
         // that too, so a rebuilt release is still offered.
-        boolean changed = expectedHash != null && !localMatches(expectedHash);
+        boolean changed = !localMatches(expectedHash);
         return new CheckResult(release, target, expectedHash, newer || changed);
     }
 
@@ -376,8 +381,10 @@ public final class HPCLUpdateManager {
             try {
                 Path temp = Files.createTempFile("hpcl-update-", suffixOf(result.target().name()));
                 download(result.target().url(), temp);
-                if (result.expectedHash() != null
-                        && !result.expectedHash().equalsIgnoreCase(sha256(temp))) {
+                if (result.expectedHash() == null) {
+                    throw new IOException("Refusing to apply an update without a SHA-256 checksum");
+                }
+                if (!result.expectedHash().equalsIgnoreCase(sha256(temp))) {
                     throw new IOException("SHA-256 mismatch for " + result.target().name());
                 }
                 Path self = JarUtils.thisJarPath();
@@ -385,21 +392,32 @@ public final class HPCLUpdateManager {
                     throw new IOException("Cannot locate the running HPCL package");
                 }
                 Platform.runLater(() -> {
-                    Controllers.showToast(i18n("update.auto.restart"));
-                    PauseTransition pause = new PauseTransition(Duration.millis(900));
-                    pause.setOnFinished(event -> {
-                        try {
-                            HPCLUpdateInstaller.requestApply(temp, self);
-                        } catch (IOException e) {
-                            LOG.warning("Failed to launch the HPCL update helper", e);
-                            applying.set(false);
-                            if (userInitiated) {
-                                Controllers.dialog(i18n("update.auto.failed"),
-                                        i18n("update.failed"), MessageDialogPane.MessageType.ERROR);
+                    try {
+                        Controllers.showToast(i18n("update.auto.restart"));
+                        PauseTransition pause = new PauseTransition(Duration.millis(900));
+                        pause.setOnFinished(event -> {
+                            try {
+                                HPCLUpdateInstaller.requestApply(temp, self);
+                            } catch (IOException e) {
+                                LOG.warning("Failed to launch the HPCL update helper", e);
+                                applying.set(false);
+                                if (userInitiated) {
+                                    Controllers.dialog(i18n("update.auto.failed"),
+                                            i18n("update.failed"), MessageDialogPane.MessageType.ERROR);
+                                }
                             }
+                        });
+                        pause.play();
+                    } catch (Throwable t) {
+                        // Anything thrown on the FX thread here used to leave
+                        // `applying` stuck at true for the rest of the session.
+                        LOG.warning("Failed to start the HPCL update helper", t);
+                        applying.set(false);
+                        if (userInitiated) {
+                            Controllers.dialog(i18n("update.auto.failed"),
+                                    i18n("update.failed"), MessageDialogPane.MessageType.ERROR);
                         }
-                    });
-                    pause.play();
+                    }
                 });
             } catch (Exception e) {
                 LOG.warning("HPCL automatic update failed", e);

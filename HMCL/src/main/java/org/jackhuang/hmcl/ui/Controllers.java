@@ -645,16 +645,28 @@ public final class Controllers {
         // update would silently reset the user's own choice.
         if (SettingsManager.userState().autoUpdatePromptVersionProperty().get() < 3) {
             int previousPrompt = SettingsManager.userState().autoUpdatePromptVersionProperty().get();
-            SettingsManager.userState().autoUpdatePromptVersionProperty().set(3);
             if (previousPrompt == 0 && !settings().autoUpdateCheckEnabledProperty().get()) {
                 AutoUpdateChannel channel = AutoUpdateChannel.forCurrentBuild();
                 Controllers.dialogLater(new MessageDialogPane.Builder(
                         i18n("update.first_run", i18n("update.auto_channel." + channel.getId())),
                         i18n("update"), MessageType.QUESTION)
                         .yesOrNo(
-                                () -> enableAutoUpdate(channel),
-                                () -> settings().autoUpdateCheckEnabledProperty().set(false))
+                                () -> {
+                                    // Mark the question as answered only after a
+                                    // real choice, so closing the card asks again
+                                    // next launch instead of silently opting out.
+                                    SettingsManager.userState().autoUpdatePromptVersionProperty().set(3);
+                                    enableAutoUpdate(channel);
+                                },
+                                () -> {
+                                    SettingsManager.userState().autoUpdatePromptVersionProperty().set(3);
+                                    settings().autoUpdateCheckEnabledProperty().set(false);
+                                })
                         .build());
+            } else {
+                // Existing installation (or already opted in): only bump the
+                // marker, never touch the switch or the chosen channel.
+                SettingsManager.userState().autoUpdatePromptVersionProperty().set(3);
             }
         }
 
@@ -851,10 +863,16 @@ public final class Controllers {
     }
 
     public static void navigate(Node node) {
+        if (decorator == null) {
+            return;
+        }
         decorator.navigate(node, PCLAnimations.FORWARD, PCLAnimations.DURATION, PCLAnimations.EASE);
     }
 
     public static void navigateForward(Node node) {
+        if (decorator == null) {
+            return;
+        }
         decorator.navigate(node, PCLAnimations.FORWARD, PCLAnimations.DURATION, PCLAnimations.EASE);
     }
 
@@ -865,6 +883,9 @@ public final class Controllers {
     }
 
     public static void showToast(String content) {
+        if (decorator == null) {
+            return;
+        }
         decorator.showToast(content);
     }
 

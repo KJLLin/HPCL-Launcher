@@ -387,16 +387,22 @@ public final class PCLTheme {
         private static void playNavSwitch(JFXButton item) {
             if (!AnimationUtils.isAnimationEnabled()) return;
             Node graphic = item.getGraphic() != null ? item.getGraphic() : item;
+            // Stop the previous run for this very node: rapid navigation clicks
+            // used to leave several timelines writing translateX/opacity.
+            Object previous = graphic.getProperties().get("hpcl.nav.anim");
+            if (previous instanceof Timeline timeline) timeline.stop();
             graphic.setTranslateX(-12);
             graphic.setOpacity(0.35);
-            new Timeline(new KeyFrame(Duration.millis(150),
-                    new KeyValue(graphic.opacityProperty(), 1, OUT_WEAK))).play();
-            new Timeline(
+            Timeline anim = new Timeline(
+                    new KeyFrame(Duration.millis(150),
+                            new KeyValue(graphic.opacityProperty(), 1, OUT_WEAK)),
                     new KeyFrame(Duration.millis(200),
                             new KeyValue(graphic.translateXProperty(), -12, BACK_MIDDLE)),
                     new KeyFrame(Duration.millis(550),
                             new KeyValue(graphic.translateXProperty(), 0, BACK_MIDDLE))
-            ).play();
+            );
+            graphic.getProperties().put("hpcl.nav.anim", anim);
+            anim.play();
         }
 
         private void stopSwitch() {
