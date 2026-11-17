@@ -11,20 +11,37 @@ concurrency:
 jobs:
   mirror:
     if: ${{ github.repository == 'KJLLin/HPCL-Launcher' }}
-    name: Mirror GitHub to Gitee
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Gitee
+            repo: gitee.com/kjllin/hpcl-launcher
+            user: kjllin
+            token: GITEE_TOKEN
+          # 以后加平台：照抄上面四行，改地址 / 用户名 / 令牌名即可
+          # - name: GitCode
+          #   repo: gitcode.com/kjllin/hpcl-launcher
+          #   user: kjllin
+          #   token: GITCODE_TOKEN
+          # - name: CNB
+          #   repo: cnb.cool/kjllin/hpcl-launcher
+          #   user: cnb
+          #   token: CNB_TOKEN
+    name: Mirror to ${{ matrix.name }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Push mirror to Gitee
+      - name: Mirror GitHub to ${{ matrix.name }}
         env:
-          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          TOKEN: ${{ secrets[matrix.token] }}
         run: |
           set -euo pipefail
-          if [ -z "${GITEE_TOKEN}" ]; then
-            echo "::warning::未配置 GITEE_TOKEN，本次跳过同步"
+          if [ -z "${TOKEN}" ]; then
+            echo "::warning::${{ matrix.name }} 未配置 ${{ matrix.token }}，跳过"
             exit 0
           fi
           git clone --mirror "https://github.com/${{ github.repository }}.git" repo
           cd repo
-          git push -f --prune "https://kjllin:${GITEE_TOKEN}@gitee.com/kjllin/hpcl-launcher.git" \
+          git push -f --prune "https://${{ matrix.user }}:${TOKEN}@${{ matrix.repo }}.git" \
             "refs/heads/*:refs/heads/*" "refs/tags/*:refs/tags/*"
