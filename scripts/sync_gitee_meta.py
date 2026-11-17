@@ -15,6 +15,8 @@ GITEE_TOKEN = os.getenv("GITEE_TOKEN", "")
 GH_TOKEN = os.getenv("GITHUB_TOKEN", "")
 SYNC_DESCRIPTION = os.getenv("SYNC_DESCRIPTION", "true").lower() == "true"
 DESCRIPTION_SUFFIX = os.getenv("GITEE_DESCRIPTION_SUFFIX", "").strip()
+HOMEPAGE_URL = os.getenv("GITEE_HOMEPAGE", "").strip()
+ALLOWED_REPO = os.getenv("ALLOWED_REPO", "KJLLin/HPCL-Launcher")
 
 gh = requests.Session()
 gh.headers["Accept"] = "application/vnd.github+json"
@@ -33,7 +35,7 @@ def gh_get(path, params=None):
 def gh_list(path, params=None):
     items, page = [], 1
     while True:
-        batch = gh_get(path, {**(params or {}), "per_page": 100, "page": page})
+        batch = gh_get(path, {"per_page": 100, "page": page, **(params or {})})
         if not batch:
             return items
         items += batch
@@ -55,7 +57,7 @@ def sync_repo():
     )
     payload = {}
 
-    # GitHub 描述 + Gitee 专属备注；若 GitHub 描述里已经写了这句，就不重复追加
+    # GitHub 描述 + Gitee 专属后缀；若 GitHub 描述里已经写了这句，就不重复追加
     src_desc = (src.get("description") or "").strip()
     desired_desc = src_desc
     if src_desc and DESCRIPTION_SUFFIX and DESCRIPTION_SUFFIX not in src_desc:
@@ -63,9 +65,10 @@ def sync_repo():
     if SYNC_DESCRIPTION and desired_desc and desired_desc != (dst.get("description") or ""):
         payload["description"] = desired_desc
 
-    src_home = src.get("homepage") or ""
-    if src_home and src_home != (dst.get("homepage") or ""):
-        payload["homepage"] = src_home
+    # 主页固定指向 GitHub 主仓库，除非显式指定了别的地址
+    desired_home = HOMEPAGE_URL or f"https://github.com/{GH_REPO}"
+    if desired_home != (dst.get("homepage") or ""):
+        payload["homepage"] = desired_home
 
     if not payload:
         print("· 仓库元信息已一致")
@@ -75,7 +78,7 @@ def sync_repo():
         f"/repos/{GITEE_OWNER}/{GITEE_REPO}",
         data={"access_token": GITEE_TOKEN, **payload},
     )
-    print("· 仓库元信息已更新：" + "、".join(payload))
+    print("· 仓库元信息已更新：" + "、".join(f"{k}={v}" for k, v in payload.items()))
 
 
 def sync_labels():
@@ -145,6 +148,10 @@ def sync_milestones():
 
 
 def main():
+    if GH_REPO.lower() != ALLOWED_REPO.lower():
+        print(f"当前仓库是 {GH_REPO}，不是 {ALLOWED_REPO}，跳过同步")
+        return 0
+
     if not GITEE_TOKEN:
         print("未配置 GITEE_TOKEN，跳过元信息同步")
         return 0
