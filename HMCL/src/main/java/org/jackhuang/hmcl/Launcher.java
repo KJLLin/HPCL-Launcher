@@ -42,6 +42,8 @@ import org.jackhuang.hmcl.theme.Themes;
 import org.jackhuang.hmcl.ui.Controllers;
 import org.jackhuang.hmcl.ui.FXUtils;
 import org.jackhuang.hmcl.ui.animation.AnimationUtils;
+import org.jackhuang.hmcl.upgrade.HPCLUpdateInstaller;
+import org.jackhuang.hmcl.upgrade.HPCLUpdateManager;
 import org.jackhuang.hmcl.upgrade.UpdateChecker;
 import org.jackhuang.hmcl.upgrade.UpdateHandler;
 import org.jackhuang.hmcl.util.*;
@@ -145,8 +147,28 @@ public final class Launcher extends Application {
                     Themes.applyNativeDarkMode(primaryStage);
 
                 UpdateChecker.init();
+                // HPCL's own GitHub Releases channel (opt-in, silent on network errors).
+                HPCLUpdateManager.init();
 
                 primaryStage.show();
+
+                // Dev-only hook for UI verification under Xvfb: jump straight
+                // to a page without relying on mouse events (a bare X server
+                // has no window manager, so synthetic clicks are unreliable).
+                String debugPage = System.getProperty("hpcl.debug.page");
+                if (debugPage != null && !debugPage.isEmpty()) {
+                    javafx.animation.PauseTransition jump =
+                            new javafx.animation.PauseTransition(Duration.millis(900));
+                    jump.setOnFinished(event -> {
+                        switch (debugPage) {
+                            case "about" -> Controllers.navigate(new org.jackhuang.hmcl.ui.main.AboutPage());
+                            case "hub" -> Controllers.navigate(new org.jackhuang.hmcl.ui.pcl.PCLHubPage());
+                            case "settings" -> Controllers.navigate(Controllers.getSettingsPage());
+                            default -> { }
+                        }
+                    });
+                    jump.play();
+                }
             });
         } catch (Throwable e) {
             CRASH_REPORTER.uncaughtException(Thread.currentThread(), e);
@@ -324,7 +346,7 @@ public final class Launcher extends Application {
     }
 
     public static void main(String[] args) {
-        if (UpdateHandler.processArguments(args)) {
+        if (HPCLUpdateInstaller.processArguments(args) || UpdateHandler.processArguments(args)) {
             LOG.shutdown();
             return;
         }

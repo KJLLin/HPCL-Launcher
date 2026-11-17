@@ -139,6 +139,16 @@ public final class UserState extends ObservableSetting implements JsonSchemaSett
         return platformPromptVersion;
     }
 
+    /// Set once the first-run "check GitHub for updates?" card was shown, so
+    /// the question is asked exactly once per user (not per workspace).
+    @SerializedName("autoUpdatePromptVersion")
+    private final IntegerProperty autoUpdatePromptVersion = new SimpleIntegerProperty();
+
+    /// Returns the auto-update first-run prompt version property.
+    public IntegerProperty autoUpdatePromptVersionProperty() {
+        return autoUpdatePromptVersion;
+    }
+
     /// Gson adapter for observable user state.
     static final class Adapter extends ObservableSetting.Adapter<UserState> {
         /// Creates an empty user state instance during deserialization.

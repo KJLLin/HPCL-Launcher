@@ -152,6 +152,29 @@ java -Dhmcl.microsoft.auth.id='你的客户端ID' \
 
 > **说明**：`unofficial.hint` 提示由 `IntegrityChecker.isOfficial()`（签名校验 / `GITHUB_SHA`）决定，与 `VERSION_TYPE` 无关，改成 `dev` 也不会消失。HPCL 作为 fork 显示该提示是诚实的，但文案已改为中性的来源与校验说明，不再写「请下载官方版本」这类误导内容。
 
+<a id="auto-update"></a>
+
+## 自动更新（GitHub Releases）
+
+HPCL 是 fork，**不连接 HMCL 官方更新端点**（否则会被官方包覆盖）。更新源为本仓库的 GitHub Releases，并提供两个用户可选通道：
+
+| 通道 | 设置值 | 匹配的 Release | 当前状态 |
+|---|---|---|---|
+| **稳定版** | `STABLE` | `prerelease=false`，且 tag 不含 `SNAPSHOT / dev / beta / alpha / nightly / rc` 等预览标记 | 暂未发布正式版。手动检查会提示「当前更新通道暂无可用版本」，自动检查静默 |
+| **测试版** | `BETA`（默认） | 所有已发布 Release，含 GitHub pre-release | `v3.16.SNAPSHOT` 即在此通道 |
+
+> 通道判定同时看 GitHub 的 `prerelease` 标记和 tag 中的预览词，避免有人忘了勾 pre-release 却把 SNAPSHOT 发到稳定通道。BETA 能看到稳定版，STABLE 永远不会收到预发布。
+
+- **首次启动**询问一次是否开启，并同时选择通道（稳定版 / 测试版 / 暂不开启），写入 `UserState.autoUpdatePromptVersion`；之后可在「设置 → 全局设置 → 更新」更改 `autoUpdateCheckEnabled`、`autoUpdateChannel`、`autoUpdateMode`。已经开启自动检测的用户升级后不会被重复询问。
+- **网络失败静默**：`api.github.com` 在国内可能超时、被限流（HTTP 403 rate limit）或返回不完整数据。自动检测遇到任何失败只写日志，**不弹窗、不 Toast**；只有用户在关于页 / 设置页手动点「立即检查」时才会报告失败。「当前通道暂无可用版本」同样静默，手动检查时给出准确提示而不是通用错误。
+- **更新方式**（`autoUpdateMode`）：
+  - `NOTIFY`（默认）：Toast + PCL 风格确认卡片，可立即更新或稍后，标题带上当前通道名。
+  - `AUTO`：后台下载 → 用 `SHA256SUMS.txt` 校验 → 启动辅助进程替换当前 jar/exe（保留 PE 头）→ 自动重启。
+- 版本判断不只看 tag：同 tag 重新打包时，会用发布包校验值与**当前运行文件**的 SHA-256 比对，避免漏掉重建版本。已处理过的 `(通道, tag, hash)` 组合会记入 `launcher-state.json`，防止自动更新循环；切换通道后仍可再次收到同一 Release。
+- 下载包必须带有 `SHA256SUMS.txt` 且校验通过才会应用；校验失败静默放弃，不会替换现有程序。
+- 当前以 `.deb` 安装时无法原位替换，会自动回退到 `.jar` 资产；`.exe` / `.sh` 通过 `ExecutableHeaderHelper` 保留启动头。
+- **发布约定**：每个 Release 都须带 5 个产物（`HPCL-<版本>.exe/.jar/.sh/.deb` + `HPCL-source.dat`）和覆盖这 5 个产物的 `SHA256SUMS.txt`。要发布稳定版，新建语义化 tag 并保持 `prerelease=false`；预发布保持 `prerelease=true`。两端一起更新，避免本地新包被旧 Release 判为「有更新」。
+
 ## 运行
 
 ```bash

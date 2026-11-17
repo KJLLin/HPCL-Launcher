@@ -303,7 +303,16 @@ public final class PCLDownloadCenter {
                 Platform.runLater(() -> speed.set(Math.max(0, event.getSpeed()))));
 
         // PageSpeedLeft.Watcher: DispatcherTimer with a 300 ms interval.
-        watcher = new Timeline(new KeyFrame(Duration.millis(300), e -> refresh()));
+        // PCL2 only drives this while loaders exist; an idle launcher must not
+        // wake the FX thread every 300 ms forever (a real source of UI jank
+        // when the user is just clicking around the pages).
+        watcher = new Timeline(new KeyFrame(Duration.millis(300), e -> {
+            if (tasks.isEmpty() && smoothedProgress.get() == 0
+                    && fileRemain.get() == 0 && threadCount.get() == 0 && !active.get()) {
+                return;
+            }
+            refresh();
+        }));
         watcher.setCycleCount(Timeline.INDEFINITE);
         watcher.play();
     }

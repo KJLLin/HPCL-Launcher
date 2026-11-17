@@ -637,6 +637,27 @@ public final class Controllers {
             Controllers.dialog(agreement);
         }
 
+        // HPCL first-run opt-in for its own GitHub Release channel. Asked once
+        // per user, queued behind the EULA card. The prompt now also picks the
+        // update channel (stable / beta); detection failures caused by GitHub
+        // being unreachable are silent by design.
+        if (SettingsManager.userState().autoUpdatePromptVersionProperty().get() < 2) {
+            SettingsManager.userState().autoUpdatePromptVersionProperty().set(2);
+            // Users who already opted in keep their choice. Only ask again when
+            // the check is still off, so an upgrade never re-prompts enabled users.
+            if (!settings().autoUpdateCheckEnabledProperty().get()) {
+                Controllers.dialogLater(new MessageDialogPane.Builder(
+                        i18n("update.first_run"), i18n("update"), MessageType.QUESTION)
+                        .addAction(i18n("update.first_run.stable"), () ->
+                                enableAutoUpdate(AutoUpdateChannel.STABLE))
+                        .addAction(i18n("update.first_run.beta"), () ->
+                                enableAutoUpdate(AutoUpdateChannel.BETA))
+                        .addCancel(i18n("update.first_run.skip"), () ->
+                                settings().autoUpdateCheckEnabledProperty().set(false))
+                        .build());
+            }
+        }
+
         aprilFools:
         if (AprilFools.isEnabled()) {
             int currentYear = LocalDate.now().getYear();
@@ -784,6 +805,13 @@ public final class Controllers {
                 cancel.run();
         });
         timeline.play();
+    }
+
+    /// Applies a first-run channel choice and runs one background check.
+    private static void enableAutoUpdate(AutoUpdateChannel channel) {
+        settings().autoUpdateCheckEnabledProperty().set(true);
+        settings().autoUpdateChannelProperty().set(channel);
+        org.jackhuang.hmcl.upgrade.HPCLUpdateManager.checkNow(false);
     }
 
     public static void dialogLater(Region content) {

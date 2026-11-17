@@ -24,6 +24,21 @@
     "disableAutoShowUpdateDialog": {
       "type": "boolean"
     },
+    "autoUpdateCheckEnabled": {
+      "type": "boolean"
+    },
+    "autoUpdateMode": {
+      "enum": [
+        "NOTIFY",
+        "AUTO"
+      ]
+    },
+    "autoUpdateChannel": {
+      "enum": [
+        "STABLE",
+        "BETA"
+      ]
+    },
     "disableAprilFools": {
       "type": "boolean"
     },

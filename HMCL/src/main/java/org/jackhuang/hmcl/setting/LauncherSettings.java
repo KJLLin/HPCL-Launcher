@@ -209,6 +209,36 @@ public final class LauncherSettings extends ObservableSetting implements JsonSch
         return disableAutoShowUpdateDialog;
     }
 
+    /// Whether HPCL checks its own GitHub Releases on startup. Defaults to off
+    /// until the first-run prompt gets an explicit answer from the user.
+    @SerializedName("autoUpdateCheckEnabled")
+    private final BooleanProperty autoUpdateCheckEnabled = new SimpleBooleanProperty(false);
+
+    /// Returns the GitHub update check enable property.
+    public BooleanProperty autoUpdateCheckEnabledProperty() {
+        return autoUpdateCheckEnabled;
+    }
+
+    /// What to do once a newer release is found: notify only, or auto-apply.
+    @SerializedName("autoUpdateMode")
+    private final ObjectProperty<AutoUpdateMode> autoUpdateMode =
+            new RawPreservingObjectProperty<>(AutoUpdateMode.DEFAULT);
+
+    /// Returns the automatic update action property.
+    public ObjectProperty<AutoUpdateMode> autoUpdateModeProperty() {
+        return autoUpdateMode;
+    }
+
+    /// Which GitHub Releases channel the self-updater subscribes to.
+    @SerializedName("autoUpdateChannel")
+    private final ObjectProperty<AutoUpdateChannel> autoUpdateChannel =
+            new RawPreservingObjectProperty<>(AutoUpdateChannel.DEFAULT);
+
+    /// Returns the GitHub update channel property.
+    public ObjectProperty<AutoUpdateChannel> autoUpdateChannelProperty() {
+        return autoUpdateChannel;
+    }
+
     /// Whether April Fools features are disabled.
     @SerializedName("disableAprilFools")
     private final BooleanProperty disableAprilFools = new SimpleBooleanProperty(false);

@@ -46,8 +46,10 @@ import org.jackhuang.hmcl.util.i18n.I18n;
 import org.jackhuang.hmcl.util.platform.OperatingSystem;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /// PCL2 `PageType.Other` — the FIFTH PanTitleSelect tab ("更多", FormMain.xaml
 /// BtnTitleSelect4). PCL2 opens a real page here (`PageChangeActual` ->
@@ -101,6 +103,14 @@ public final class PCLHubPage extends BorderPane implements DecoratorPage {
     private final ScrollPane scroll = new ScrollPane(flow);
     private final PCLPageLoader loader = new PCLPageLoader("正在加载", true);
     private final List<HBox> navItems = new ArrayList<>();
+    /// PCL2 keeps its right-pane cards alive between tab switches (PageSpeedLeft
+    /// reuses a RightCards dictionary). Rebuilding every card on each click was
+    /// the main source of the "more" page feeling sluggish.
+    private final Map<Section, List<Node>> sectionCache = new EnumMap<>(Section.class);
+    /// Decoded once: the built-in skins never change, so rebuilding the page
+    /// must not decode the same PNGs again.
+    private static final Image STEVE_SKIN = loadSkin("/assets/img/pcl/steve.png");
+    private static final Image ALEX_SKIN = loadSkin("/assets/img/pcl/alex.png");
     private Section current;
     private boolean loaded;
     private VBox helpList;
@@ -126,7 +136,7 @@ public final class PCLHubPage extends BorderPane implements DecoratorPage {
 
         // PCL PageLoaderInit: the loader card waits, then exits while the
         // content plays its staggered entrance. Show it once per session.
-        loader.show();
+        loader.showImmediately();
         javafx.animation.PauseTransition delay =
                 new javafx.animation.PauseTransition(Duration.millis(700));
         delay.setOnFinished(e -> {
@@ -192,13 +202,17 @@ public final class PCLHubPage extends BorderPane implements DecoratorPage {
                 navItems.get(i).getStyleClass().remove("hpcl-hub-nav-active");
             }
         }
-        List<Node> cards = new ArrayList<>();
-        switch (section) {
-            case HELP -> buildHelp(cards);
-            case ABOUT -> buildAbout(cards);
-            case TOOLBOX -> buildToolbox(cards);
-            case FEEDBACK -> buildFeedback(cards);
-            case VOTE -> buildVote(cards);
+        List<Node> cards = sectionCache.get(section);
+        if (cards == null) {
+            cards = new ArrayList<>();
+            switch (section) {
+                case HELP -> buildHelp(cards);
+                case ABOUT -> buildAbout(cards);
+                case TOOLBOX -> buildToolbox(cards);
+                case FEEDBACK -> buildFeedback(cards);
+                case VOTE -> buildVote(cards);
+            }
+            sectionCache.put(section, cards);
         }
         flow.getChildren().setAll(cards);
         scroll.setVvalue(0);
@@ -295,14 +309,39 @@ public final class PCLHubPage extends BorderPane implements DecoratorPage {
     }
 
     private void buildAbout(List<Node> out) {
-        out.add(card("关于 " + Metadata.NAME,
-                text(Metadata.FULL_TITLE + "\n基于 " + Metadata.UPSTREAM_NAME
-                        + " v" + Metadata.UPSTREAM_VERSION
-                        + "，界面与动画按 PCL 开源实现复刻。", "hpcl-hub-text"),
+        // HPCL's own card: latest square logo, identity, build channel, links
+        // and a manual update check. No upstream attribution mixed in here.
+        String channelName = I18n.i18n("update.auto_channel."
+                + org.jackhuang.hmcl.setting.SettingsManager.settings()
+                        .autoUpdateChannelProperty().get().getId());
+        ImageView logo = new ImageView(FXUtils.newBuiltinImage("/assets/img/hpcl-logo.png"));
+        logo.setFitWidth(48);
+        logo.setFitHeight(48);
+        logo.setSmooth(true);
+        HBox identity = new HBox(14, logo,
+                text(Metadata.FULL_NAME + "\n" + "v" + Metadata.VERSION
+                        + " · " + Metadata.BUILD_CHANNEL, "hpcl-hub-text"));
+        identity.setAlignment(Pos.CENTER_LEFT);
+        out.add(card(I18n.i18n("about.hpcl.section"),
+                identity,
                 statRow("当前版本", Metadata.VERSION),
                 statRow("构建通道", Metadata.BUILD_CHANNEL),
+                statRow(I18n.i18n("update.auto_channel"), channelName),
+                statRow("上游基线", Metadata.UPSTREAM_NAME + " " + Metadata.UPSTREAM_VERSION),
                 link(I18n.i18n("hpcl.about.repository"), Metadata.REPOSITORY_URL),
-                link("开源许可 · GPLv3", Metadata.EULA_URL)));
+                link(I18n.i18n("about.hpcl.download_site"), Metadata.REPOSITORY_RELEASES_URL),
+                link("开源许可 · GPLv3", Metadata.EULA_URL),
+                actionLink(I18n.i18n("update.check_now"), () ->
+                        org.jackhuang.hmcl.upgrade.HPCLUpdateManager.checkNow(true))));
+
+        // GPLv3 attribution gets its own card, separate from the HPCL card.
+        out.add(card(I18n.i18n("about.upstream.section"),
+                text(I18n.i18n("about.hpcl.upstream") + "\n"
+                        + I18n.i18n("about.hpcl.upstream.statement"), "hpcl-hub-text"),
+                link("HMCL 项目主页", "https://github.com/HMCL-dev/HMCL"),
+                text(I18n.i18n("about.hpcl.upstream.pcl") + "\n"
+                        + I18n.i18n("about.hpcl.upstream.pcl.statement"), "hpcl-hub-muted")));
+
         buildCredentials(out);
         out.add(card("致谢",
                 text("感谢 HMCL 与 PCL 开源社区提供的实现参考。本启动器仅复用其设计参数，代码为独立实现。", "hpcl-hub-text"),
@@ -369,19 +408,23 @@ public final class PCLHubPage extends BorderPane implements DecoratorPage {
                 ? "（未登录）" : Accounts.getSelectedAccount().getProfileName();
         HBox skins = new HBox(18);
         skins.setAlignment(Pos.CENTER_LEFT);
-        skins.getChildren().setAll(skinBox("Steve", "/assets/img/pcl/steve.png"),
-                skinBox("Alex", "/assets/img/pcl/alex.png"));
+        skins.getChildren().setAll(skinBox("Steve", STEVE_SKIN),
+                skinBox("Alex", ALEX_SKIN));
         out.add(card("内置皮肤 · 当前账号：" + user, skins));
         out.add(card("关于本页",
                 text("此页面按 PCL2 的 PageOtherLeft / PageOtherTest 结构制作，内容取自 HPCL 实际功能与运行环境。", "hpcl-hub-muted")));
     }
 
-    private static VBox skinBox(String name, String resource) {
-        ImageView view = new ImageView();
+    private static Image loadSkin(String resource) {
         try {
-            view.setImage(new Image(resource, 64, 64, true, true));
+            return new Image(resource, 64, 64, true, true);
         } catch (Exception ignored) {
+            return null;
         }
+    }
+
+    private static VBox skinBox(String name, Image skin) {
+        ImageView view = new ImageView(skin);
         view.setFitWidth(64);
         view.setFitHeight(64);
         view.setPreserveRatio(true);
@@ -438,9 +481,11 @@ public final class PCLHubPage extends BorderPane implements DecoratorPage {
     @Override
     public void refresh() {
         if (current == Section.TOOLBOX) {
-            // Rebuild the live runtime numbers.
+            // Rebuild the live runtime numbers, then refresh the cache.
+            sectionCache.remove(Section.TOOLBOX);
             List<Node> cards = new ArrayList<>();
             buildToolbox(cards);
+            sectionCache.put(Section.TOOLBOX, cards);
             flow.getChildren().setAll(cards);
         }
     }

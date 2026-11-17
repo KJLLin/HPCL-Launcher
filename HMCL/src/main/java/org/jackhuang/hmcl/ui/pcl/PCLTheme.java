@@ -146,12 +146,19 @@ public final class PCLTheme {
 
     /// PCL `AniEaseInoutFluent`: slow in / slow out, symmetric around 0.5.
     public static Interpolator inoutFluent(int power) {
+        return inoutFluent(power, 0.5);
+    }
+
+    /// PCL `AniEaseInoutFluent(Power, MidPoint)`: `MyExtraButton.Ribble`
+    /// uses Strong with a 0.3 mid point, so the expansion accelerates later.
+    public static Interpolator inoutFluent(int power, double mid) {
+        final double pivot = Math.min(0.95, Math.max(0.05, mid));
         return new Interpolator() {
             @Override
             protected double curve(double t) {
-                return t < 0.5
-                        ? Math.pow(2 * t, power) * 0.5
-                        : 1 - Math.pow(2 * (1 - t), power) * 0.5;
+                return t < pivot
+                        ? Math.pow(t / pivot, power) * pivot
+                        : 1 - (1 - pivot) * Math.pow((1 - t) / (1 - pivot), power);
             }
         };
     }
@@ -165,10 +172,11 @@ public final class PCLTheme {
             @Override
             protected double curve(double t) {
                 if (t >= 1) return 1;
-                double fluent = 1 - Math.pow(1 - t, power);
-                // Blend a linear head start into the fluent tail.
-                double head = alpha * t * Math.pow(1 - t, power - 1);
-                return Math.max(0, Math.min(1, fluent + head));
+                // PCL `AniEaseOutFluentWithInitial.GetValue` (ModAnimation.vb:652):
+                // (alpha + 1) * p / (1 + alpha * p). The earlier HPCL blend
+                // mixed a fluent tail into a linear head, which had a different
+                // velocity profile and made the sidebar slide feel heavy.
+                return (alpha + 1) * t / (1 + alpha * t);
             }
         };
     }
@@ -202,7 +210,7 @@ public final class PCLTheme {
                 if (t <= 0) return 0;
                 if (t >= 1) return 1;
                 return Math.pow(t, (p - 1) * 0.25)
-                        * Math.sin((p - 3.5) * Math.PI * Math.pow(1 - t, 1.5));
+                        * Math.cos((p - 3.5) * Math.PI * Math.pow(1 - t, 1.5));
             }
         };
     }
@@ -223,6 +231,8 @@ public final class PCLTheme {
     public static final Interpolator IN_ELASTIC_WEAK = inElastic(2);
     public static final Interpolator INOUT_WEAK = inoutFluent(2);
     public static final Interpolator INOUT_MIDDLE = inoutFluent(3);
+    /// PCL `AniEaseInoutFluent(AniEasePower.Strong, 0.3)` for MyExtraButton.Ribble.
+    public static final Interpolator RIBBLE_EASE = inoutFluent(4, 0.3);
     public static final Interpolator CAR_OUT_WEAK = outCar(2);
     public static final Interpolator CAR_IN_WEAK = inCar(2);
 
@@ -859,9 +869,21 @@ public final class PCLTheme {
         for (int i = 0; i < nodes.size(); i++) {
             Node node = nodes.get(i);
             // Several PCL entry paths can target the same card in one pulse
-            // (page navigation + a page's own stagger). Only play it once.
+            // (page navigation + a page's own stagger). Stop any animation
+            // still writing to this node first, otherwise two Transitions
+            // fight over opacity/translateY and leave the card half-faded
+            // after rapid page switches.
+            Object running = node.getProperties().get("hpcl.enter.animation");
+            if (running instanceof Animation a) {
+                a.stop();
+                node.getProperties().remove("hpcl.enter.animation");
+            }
             Object last = node.getProperties().get("hpcl.enter.at");
-            if (last instanceof Long t && now - t < 600) continue;
+            if (last instanceof Long t && now - t < 600) {
+                node.setOpacity(1);
+                node.setTranslateY(0);
+                continue;
+            }
             node.getProperties().put("hpcl.enter.at", now);
             int delay = i * ENTER_STAGGER;
             node.setOpacity(0);
@@ -871,7 +893,9 @@ public final class PCLTheme {
             // relative +5px slide (AniEaseOutFluent) and a 350ms relative
             // +11px slide (AniEaseOutBack). The two slides add to +16px, so
             // the control lands exactly at y=0 at 350ms.
-            new StaggeredEntrance(node, delay).play();
+            StaggeredEntrance entrance = new StaggeredEntrance(node, delay);
+            node.getProperties().put("hpcl.enter.animation", entrance);
+            entrance.play();
         }
     }
 
@@ -935,22 +959,27 @@ public final class PCLTheme {
     /// ball and fades away. Fired once when a new task joins the queue.
     public static void playRibble(StackPane host, double radius) {
         if (host == null || !AnimationUtils.isAnimationEnabled()) return;
-        Circle ring = new Circle(radius);
+        // PCL2 `MyExtraButton.Ribble`: a Border starts at scale 1 and grows
+        // by +13 over 1000 ms with InoutFluent(Strong, 0.3), fading linearly
+        // the whole time. The previous HPCL version used a 0.2 -> 2.2 Circle
+        // with OUT_STRONG, which was both too small and the wrong curve.
+        // A smaller base radius keeps the 14x expansion inside the ball.
+        Circle ring = new Circle(radius * 0.32);
         ring.getStyleClass().add("hpcl-ribble");
         ring.setOpacity(0.5);
         ring.setMouseTransparent(true);
-        ring.setScaleX(0.2);
-        ring.setScaleY(0.2);
+        ring.setScaleX(1);
+        ring.setScaleY(1);
         host.getChildren().add(0, ring);
         Timeline ripple = new Timeline(
                 new KeyFrame(Duration.ZERO,
-                        new KeyValue(ring.scaleXProperty(), 0.2),
-                        new KeyValue(ring.scaleYProperty(), 0.2),
+                        new KeyValue(ring.scaleXProperty(), 1),
+                        new KeyValue(ring.scaleYProperty(), 1),
                         new KeyValue(ring.opacityProperty(), 0.5)),
                 new KeyFrame(Duration.millis(1000),
-                        new KeyValue(ring.scaleXProperty(), 2.2, OUT_STRONG),
-                        new KeyValue(ring.scaleYProperty(), 2.2, OUT_STRONG),
-                        new KeyValue(ring.opacityProperty(), 0, IN_WEAK)));
+                        new KeyValue(ring.scaleXProperty(), 14, RIBBLE_EASE),
+                        new KeyValue(ring.scaleYProperty(), 14, RIBBLE_EASE),
+                        new KeyValue(ring.opacityProperty(), 0, Interpolator.LINEAR)));
         ripple.setOnFinished(e -> host.getChildren().remove(ring));
         ripple.play();
     }
@@ -1032,6 +1061,14 @@ public final class PCLTheme {
             return null;
         }
 
+        // A previous launch attempt may still own an INDEFINITE sweep. Stop it
+        // before creating a new one, otherwise the old Timeline keeps writing
+        // to scale.x forever (and leaks one Timeline per launch click).
+        Object previous = button.getProperties().get("hpcl.launch.animation");
+        if (previous instanceof Animation old) {
+            old.stop();
+            button.getProperties().remove("hpcl.launch.animation");
+        }
         scale.setX(0);
         Timeline sweep = new Timeline(
                 new KeyFrame(Duration.millis(0),
@@ -1193,20 +1230,39 @@ public final class PCLTheme {
         collectAnimControls(sidebar, blocks, 0, false);
         int delay = 0;
         for (int i = 0; i < blocks.size(); i++) {
-            Node node = blocks.get(i);
+            final Node node = blocks.get(i);
+            // PCL3 `Controls_MyPageLeft.vb:41-53`: three AniData entries start
+            // at the SAME Delay and their relative values add up per frame:
+            //   AaOpacity(TextBlock -> 0.6, others -> 1, 100, OutFluent/Weak)
+            //   AaTranslateX(+5, 200, OutFluent)
+            //   AaTranslateX(+20, 300, OutBack/Weak)
+            // Starting at -25 px the control therefore lands at 0. The old
+            // HPCL version chained -25 -> -20 -> 0 sequentially, which looked
+            // noticeably slower than PCL2.
+            final double opacityTarget = node instanceof javafx.scene.text.Text ? 0.6 : 1;
+            final int startDelay = delay;
+            final int total = delay + 300;
             node.setOpacity(0);
             node.setTranslateX(-25);
-            new Timeline(
-                    new KeyFrame(Duration.millis(delay),
-                            new KeyValue(node.opacityProperty(), 0, OUT_WEAK),
-                            new KeyValue(node.translateXProperty(), -25, OUT_MIDDLE)),
-                    new KeyFrame(Duration.millis(delay + 100),
-                            new KeyValue(node.opacityProperty(), 1, OUT_WEAK)),
-                    new KeyFrame(Duration.millis(delay + 200),
-                            new KeyValue(node.translateXProperty(), -20, OUT_MIDDLE)),
-                    new KeyFrame(Duration.millis(delay + 300),
-                            new KeyValue(node.translateXProperty(), 0, BACK_WEAK))
-            ).play();
+            Transition slide = new Transition() {
+                {
+                    setCycleDuration(Duration.millis(total));
+                    setInterpolator(Interpolator.LINEAR);
+                }
+
+                @Override
+                protected void interpolate(double fraction) {
+                    double local = Math.max(0, fraction * total - startDelay);
+                    double p200 = Math.min(1, Math.max(0, local / 200));
+                    double p300 = Math.min(1, Math.max(0, local / 300));
+                    double p100 = Math.min(1, Math.max(0, local / 100));
+                    node.setTranslateX(-25
+                            + 5 * OUT_MIDDLE.interpolate(0, 1, p200)
+                            + 20 * BACK_WEAK.interpolate(0, 1, p300));
+                    node.setOpacity(opacityTarget * OUT_WEAK.interpolate(0, 1, p100));
+                }
+            };
+            slide.play();
             delay += Math.max(15 - i, 7) * 2;
         }
     }

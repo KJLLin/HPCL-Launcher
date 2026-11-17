@@ -23,6 +23,9 @@
     },
     "platformPromptVersion": {
       "type": "integer"
+    },
+    "autoUpdatePromptVersion": {
+      "type": "integer"
     }
   }
 }

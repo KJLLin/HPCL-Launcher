@@ -72,6 +72,9 @@ public final class PCLDownloadBall extends HBox {
     private Runnable onOpen;
     private Timeline showTimeline;
     private Timeline pressTimeline;
+    /// Reused for every hover transition: creating a Timeline per mouse event
+    /// lets several of them write hoverMix at once and stutters on fast moves.
+    private Timeline hoverTimeline;
 
     public PCLDownloadBall() {
         getStyleClass().add("hpcl-download-ball");
@@ -304,8 +307,10 @@ public final class PCLDownloadBall extends HBox {
             hoverMix.set(target);
             return;
         }
-        new Timeline(new KeyFrame(Duration.millis(millis),
-                new KeyValue(hoverMix, target, javafx.animation.Interpolator.LINEAR))).play();
+        if (hoverTimeline != null) hoverTimeline.stop();
+        hoverTimeline = new Timeline(new KeyFrame(Duration.millis(millis),
+                new KeyValue(hoverMix, target, javafx.animation.Interpolator.LINEAR)));
+        hoverTimeline.play();
     }
 
     // ------------------------------------------------------------------ //
@@ -333,5 +338,6 @@ public final class PCLDownloadBall extends HBox {
     public void dispose() {
         if (showTimeline != null) showTimeline.stop();
         if (pressTimeline != null) pressTimeline.stop();
+        if (hoverTimeline != null) hoverTimeline.stop();
     }
 }

@@ -18,10 +18,13 @@
 package org.jackhuang.hmcl.ui.main;
 
 import com.google.gson.*;
+import javafx.scene.Node;
 import javafx.scene.control.ScrollPane;
 import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.VBox;
 import org.jackhuang.hmcl.Metadata;
+import org.jackhuang.hmcl.setting.Accounts;
 import org.jackhuang.hmcl.theme.Themes;
 import org.jackhuang.hmcl.ui.FXUtils;
 import org.jackhuang.hmcl.ui.SVG;
@@ -30,6 +33,7 @@ import org.jackhuang.hmcl.ui.construct.ComponentList;
 import org.jackhuang.hmcl.ui.construct.ImageContainer;
 import org.jackhuang.hmcl.ui.construct.LineButton;
 import org.jackhuang.hmcl.ui.construct.SpinnerPane;
+import org.jackhuang.hmcl.upgrade.HPCLUpdateManager;
 import org.jackhuang.hmcl.util.gson.JsonUtils;
 
 import java.io.IOException;
@@ -38,6 +42,10 @@ import java.io.InputStream;
 import static org.jackhuang.hmcl.util.i18n.I18n.i18n;
 import static org.jackhuang.hmcl.util.logging.Logger.LOG;
 
+/// The About page keeps HPCL's own information and the GPLv3 upstream
+/// attribution in two separate sections: the screenshot used to stack
+/// "HPCL Launcher" and "Upstream - HPCL" in one card, which was both wrong
+/// (the upstream is HMCL) and visually confusing.
 public final class AboutPage extends SpinnerPane {
 
     private final WeakListenerHolder holder = new WeakListenerHolder();
@@ -50,29 +58,91 @@ public final class AboutPage extends SpinnerPane {
         FXUtils.smoothScrolling(scrollPane);
         setContent(scrollPane);
 
-        ComponentList about = new ComponentList();
+        ComponentList hpcl = new ComponentList();
         {
-            var launcher = LineButton.createExternalLinkButton("https://github.com/HMCL-dev/HMCL");
+            // Latest square HPCL logo (v2, per-size generated), not the old "H" tile.
+            var launcher = new LineButton();
             launcher.setLargeTitle(true);
-            launcher.setLeading(FXUtils.newBuiltinImage("/assets/img/icon.png"));
+            launcher.setLeading(hpclLogo(40));
             launcher.setTitle(Metadata.FULL_NAME);
-            launcher.setSubtitle("v" + Metadata.VERSION + " · " + Metadata.UPSTREAM_NAME + " " + Metadata.UPSTREAM_VERSION);
+            launcher.setSubtitle("v" + Metadata.VERSION + " · " + Metadata.UPSTREAM_NAME
+                    + " " + Metadata.UPSTREAM_VERSION);
+            launcher.setTrailingIcon(SVG.OPEN_IN_NEW);
+            launcher.setOnAction(event -> FXUtils.openLink(Metadata.REPOSITORY_URL));
 
-            // GPLv3 requires keeping the original copyright notice; HPCL is a derived work.
-            var upstream = LineButton.createExternalLinkButton("https://github.com/HMCL-dev/HMCL");
-            upstream.setLargeTitle(true);
-            upstream.setLeading(FXUtils.newBuiltinImage("/assets/img/github.png"));
-            upstream.setTitle(i18n("about.hpcl.upstream"));
-            upstream.setSubtitle(i18n("about.hpcl.upstream.statement"));
+            var build = new LineButton();
+            build.setLargeTitle(true);
+            build.setTitle(i18n("about.hpcl.build"));
+            String sha = Metadata.GITHUB_SHA == null ? "local"
+                    : Metadata.GITHUB_SHA.substring(0, Math.min(8, Metadata.GITHUB_SHA.length()));
+            build.setSubtitle("v" + Metadata.VERSION + " · " + Metadata.BUILD_CHANNEL + " · " + sha);
 
-            // HPCL's own repository: source, issues and release downloads.
             var repository = LineButton.createExternalLinkButton(Metadata.REPOSITORY_URL);
             repository.setLargeTitle(true);
             repository.setLeading(FXUtils.newBuiltinImage("/assets/img/github.png"));
             repository.setTitle(i18n("hpcl.about.repository"));
             repository.setSubtitle(i18n("hpcl.about.repository.statement"));
 
-            about.getContent().setAll(launcher, upstream, repository);
+            var releases = LineButton.createExternalLinkButton(Metadata.REPOSITORY_RELEASES_URL);
+            releases.setLargeTitle(true);
+            releases.setTitle(i18n("about.hpcl.download_site"));
+            releases.setSubtitle(Metadata.REPOSITORY_RELEASES_URL);
+
+            var channel = new LineButton();
+            channel.setLargeTitle(true);
+            channel.setTitle(i18n("update.auto_channel"));
+            var selected = org.jackhuang.hmcl.setting.SettingsManager.settings()
+                    .autoUpdateChannelProperty().get();
+            String channelId = selected == null
+                    ? org.jackhuang.hmcl.setting.AutoUpdateChannel.DEFAULT.getId()
+                    : selected.getId();
+            channel.setSubtitle(i18n("update.auto_channel." + channelId)
+                    + " · " + i18n("update.auto_channel.subtitle"));
+
+            var check = new LineButton();
+            check.setLargeTitle(true);
+            check.setTitle(i18n("update.check_now"));
+            check.setSubtitle(i18n("update.check_now.subtitle"));
+            check.setTrailingIcon(SVG.REFRESH);
+            check.setOnAction(event -> HPCLUpdateManager.checkNow(true));
+
+            hpcl.getContent().setAll(launcher, build, repository, releases, channel, check);
+        }
+
+        ComponentList credentials = new ComponentList();
+        {
+            boolean microsoft = !Accounts.OAUTH_CALLBACK.getClientId().isEmpty();
+            boolean curseForge = org.jackhuang.hmcl.addon.repository
+                    .CurseForgeRemoteAddonRepository.isAvailable();
+            String ok = i18n("hpcl.credentials.status.configured");
+            String missing = i18n("hpcl.credentials.status.missing");
+            var state = new LineButton();
+            state.setLargeTitle(true);
+            state.setTitle(i18n("hpcl.credentials.title"));
+            state.setSubtitle(i18n("hpcl.credentials.microsoft.signin") + ": "
+                    + (microsoft ? ok : missing) + " · "
+                    + i18n("hpcl.credentials.curseforge") + ": " + (curseForge ? ok : missing));
+            state.setTrailingIcon(SVG.OPEN_IN_NEW);
+            state.setOnAction(event -> FXUtils.openLink(Metadata.REPOSITORY_URL + "#credentials"));
+            credentials.getContent().setAll(state);
+        }
+
+        // Upstream attribution lives in its own section, never mixed into the
+        // HPCL product card. GPLv3 requires keeping the original notice.
+        ComponentList upstream = new ComponentList();
+        {
+            var hmcl = LineButton.createExternalLinkButton("https://github.com/HMCL-dev/HMCL");
+            hmcl.setLargeTitle(true);
+            hmcl.setLeading(FXUtils.newBuiltinImage("/assets/img/github.png"));
+            hmcl.setTitle(i18n("about.hpcl.upstream"));
+            hmcl.setSubtitle(i18n("about.hpcl.upstream.statement"));
+
+            var pcl = new LineButton();
+            pcl.setLargeTitle(true);
+            pcl.setTitle(i18n("about.hpcl.upstream.pcl"));
+            pcl.setSubtitle(i18n("about.hpcl.upstream.pcl.statement"));
+
+            upstream.getContent().setAll(hmcl, pcl);
         }
 
         ComponentList deps = loadIconedTwoLineList("/assets/about/deps.json");
@@ -101,13 +171,27 @@ public final class AboutPage extends SpinnerPane {
         // omitted. The dependency licences and legal notices below are kept,
         // since GPLv3 and the bundled third-party licences require them.
         content.getChildren().setAll(
-                ComponentList.createComponentListTitle(i18n("about")),
-                about,
+                ComponentList.createComponentListTitle(i18n("about.hpcl.section")),
+                hpcl,
+                ComponentList.createComponentListTitle(i18n("hpcl.credentials.title")),
+                credentials,
+                ComponentList.createComponentListTitle(i18n("about.upstream.section")),
+                upstream,
                 ComponentList.createComponentListTitle(i18n("about.dependency")),
                 deps,
                 ComponentList.createComponentListTitle(i18n("about.legal")),
                 legal
         );
+    }
+
+    /// The square HPCL logo shipped in the jar; cached by FXUtils.newBuiltinImage
+    /// so navigating to the About page repeatedly does not decode the PNG again.
+    private static Node hpclLogo(double size) {
+        ImageView view = new ImageView(FXUtils.newBuiltinImage("/assets/img/hpcl-logo.png"));
+        view.setFitWidth(size);
+        view.setFitHeight(size);
+        view.setSmooth(true);
+        return view;
     }
 
     private static Image loadImage(String url) {
@@ -147,7 +231,6 @@ public final class AboutPage extends SpinnerPane {
                         var imageView = new ImageContainer(32, 32);
                         imageView.setImage(loadImage(image.getAsString()));
                         imageView.setMouseTransparent(true);
-
 
                         button.setLeading(imageView);
                     } else if (image.isJsonObject()) {

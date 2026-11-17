@@ -31,12 +31,15 @@ import javafx.scene.layout.BorderPane;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.VBox;
 import org.jackhuang.hmcl.Metadata;
+import org.jackhuang.hmcl.setting.AutoUpdateChannel;
+import org.jackhuang.hmcl.setting.AutoUpdateMode;
 import org.jackhuang.hmcl.task.Schedulers;
 import org.jackhuang.hmcl.ui.Controllers;
 import org.jackhuang.hmcl.ui.FXUtils;
 import org.jackhuang.hmcl.ui.SVG;
 import org.jackhuang.hmcl.ui.construct.*;
 import org.jackhuang.hmcl.ui.construct.MessageDialogPane.MessageType;
+import org.jackhuang.hmcl.upgrade.HPCLUpdateManager;
 import org.jackhuang.hmcl.upgrade.RemoteVersion;
 import org.jackhuang.hmcl.upgrade.UpdateChannel;
 import org.jackhuang.hmcl.upgrade.UpdateChecker;
@@ -159,6 +162,51 @@ public final class SettingsPage extends ScrollPane {
                     disableAutoShowUpdateDialogPane.setSubtitle(i18n("update.disable_auto_show_update_dialog.subtitle"));
                     disableAutoShowUpdateDialogPane.selectedProperty().bindBidirectional(settings().disableAutoShowUpdateDialogProperty());
                     updatePaneList.getContent().add(disableAutoShowUpdateDialogPane);
+                }
+
+                // HPCL's own GitHub Release channel. The legacy upstream
+                // UpdateChecker stays disabled; these controls drive
+                // HPCLUpdateManager instead.
+                {
+                    LineToggleButton autoCheckPane = new LineToggleButton();
+                    autoCheckPane.setTitle(i18n("update.auto_check"));
+                    autoCheckPane.setSubtitle(i18n("update.auto_check.subtitle"));
+                    autoCheckPane.selectedProperty().bindBidirectional(
+                            settings().autoUpdateCheckEnabledProperty());
+                    updatePaneList.getContent().add(autoCheckPane);
+                }
+
+                {
+                    var channelPane = new LineSelectButton<AutoUpdateChannel>();
+                    channelPane.setTitle(i18n("update.auto_channel"));
+                    channelPane.setSubtitle(i18n("update.auto_channel.subtitle"));
+                    channelPane.setValue(settings().autoUpdateChannelProperty().get());
+                    channelPane.setNullSafeConverter(channel ->
+                            i18n("update.auto_channel." + channel.getId()));
+                    channelPane.setItems(List.of(AutoUpdateChannel.STABLE, AutoUpdateChannel.BETA));
+                    channelPane.valueProperty().bindBidirectional(settings().autoUpdateChannelProperty());
+                    updatePaneList.getContent().add(channelPane);
+                }
+
+                {
+                    var modePane = new LineSelectButton<AutoUpdateMode>();
+                    modePane.setTitle(i18n("update.auto_mode"));
+                    modePane.setSubtitle(i18n("update.auto_mode.subtitle"));
+                    modePane.setValue(settings().autoUpdateModeProperty().get());
+                    modePane.setNullSafeConverter(mode ->
+                            i18n("update.auto_mode." + mode.getId()));
+                    modePane.setItems(List.of(AutoUpdateMode.NOTIFY, AutoUpdateMode.AUTO));
+                    modePane.valueProperty().bindBidirectional(settings().autoUpdateModeProperty());
+                    updatePaneList.getContent().add(modePane);
+                }
+
+                {
+                    var checkNow = new LineButton();
+                    checkNow.setTitle(i18n("update.check_now"));
+                    checkNow.setSubtitle(i18n("update.check_now.subtitle"));
+                    checkNow.setTrailingIcon(SVG.REFRESH);
+                    checkNow.setOnAction(event -> HPCLUpdateManager.checkNow(true));
+                    updatePaneList.getContent().add(checkNow);
                 }
 
                 rootPane.getChildren().addAll(ComponentList.createComponentListTitle(i18n("update")), updatePaneList);

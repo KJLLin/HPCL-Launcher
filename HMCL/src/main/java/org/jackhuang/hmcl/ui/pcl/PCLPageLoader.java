@@ -19,6 +19,7 @@ package org.jackhuang.hmcl.ui.pcl;
 
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
+import javafx.animation.PauseTransition;
 import javafx.animation.Timeline;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -45,6 +46,14 @@ public final class PCLPageLoader extends StackPane {
     private final PCLLoading loading;
     private Timeline current;
     private Runnable onRetry;
+    /// PCL `MyPageRight.LoaderWait` / `LoaderStayForce`: the loader only
+    /// appears if work takes more than 400 ms, and once shown it stays at
+    /// least 400 ms so fast loads do not flash a white card.
+    private static final int LOADER_WAIT = 400;
+    private static final int LOADER_STAY = 400;
+    private PauseTransition pendingShow;
+    private PauseTransition pendingHide;
+    private long shownAt = -1;
 
     public PCLPageLoader(String text, boolean showProgress) {
         getStyleClass().add("hpcl-page-loader");
@@ -98,7 +107,42 @@ public final class PCLPageLoader extends StackPane {
     /// PCL `PageLoaderState` -> LoaderEnter: card fades in and slides down
     /// from -16px, pickaxe starts swinging.
     public void show() {
+        if (pendingHide != null) {
+            pendingHide.stop();
+            pendingHide = null;
+        }
+        if (shownAt >= 0 || pendingShow != null) return;
+        if (!AnimationUtils.isAnimationEnabled()) {
+            doShow();
+            return;
+        }
+        pendingShow = new PauseTransition(Duration.millis(LOADER_WAIT));
+        pendingShow.setOnFinished(e -> {
+            pendingShow = null;
+            doShow();
+        });
+        pendingShow.play();
+    }
+
+    /// For pages that deliberately show the pickaxe card (the "更多" hub and
+    /// the version list) rather than waiting on a real background loader.
+    /// `LoaderWait` only exists to avoid flashing on fast real loads.
+    public void showImmediately() {
+        if (pendingShow != null) {
+            pendingShow.stop();
+            pendingShow = null;
+        }
+        if (pendingHide != null) {
+            pendingHide.stop();
+            pendingHide = null;
+        }
+        if (shownAt >= 0) return;
+        doShow();
+    }
+
+    private void doShow() {
         if (current != null) current.stop();
+        shownAt = System.currentTimeMillis();
         setManaged(true);
         setVisible(true);
         loading.start();
@@ -124,6 +168,31 @@ public final class PCLPageLoader extends StackPane {
     /// PCL `TriggerExitAnimation`: 70ms fade, -6px slide, then the content
     /// container enters. `onFinished` is where the owner reveals its content.
     public void hide(Runnable onFinished) {
+        if (pendingShow != null) {
+            // Content arrived before LoaderWait elapsed: never show the card.
+            pendingShow.stop();
+            pendingShow = null;
+            finish(onFinished);
+            return;
+        }
+        if (pendingHide != null) {
+            pendingHide.stop();
+            pendingHide = null;
+        }
+        long elapsed = shownAt < 0 ? LOADER_STAY : System.currentTimeMillis() - shownAt;
+        if (elapsed < LOADER_STAY) {
+            pendingHide = new PauseTransition(Duration.millis(LOADER_STAY - elapsed));
+            pendingHide.setOnFinished(e -> {
+                pendingHide = null;
+                doHide(onFinished);
+            });
+            pendingHide.play();
+        } else {
+            doHide(onFinished);
+        }
+    }
+
+    private void doHide(Runnable onFinished) {
         if (current != null) current.stop();
         if (!AnimationUtils.isAnimationEnabled()) {
             finish(onFinished);
@@ -144,6 +213,7 @@ public final class PCLPageLoader extends StackPane {
         setVisible(false);
         setManaged(false);
         setOpacity(0);
+        shownAt = -1;
         loading.stop();
         if (onFinished != null) onFinished.run();
     }
@@ -151,16 +221,20 @@ public final class PCLPageLoader extends StackPane {
     /// PCL `MyLoading` error state: keep the card and show a clickable cross.
     public void showError(String message, Runnable retry) {
         onRetry = retry;
+        // An error must be visible even if the 400 ms LoaderWait has not
+        // elapsed yet.
+        if (pendingShow != null) {
+            pendingShow.stop();
+            pendingShow = null;
+        }
+        if (shownAt < 0) doShow();
         loading.setError(message);
     }
 
-    /// Plays PCL's staggered entrance on a freshly built content container.
+    /// PCL `MyPageRight.TriggerEnterAnimation` on the freshly built content
+    /// container: collect the card/TextBlock level blocks and stagger them.
     public static void reveal(Node content) {
         if (content == null) return;
-        if (content instanceof javafx.scene.layout.Pane pane) {
-            PCLTheme.playEntrance(new java.util.ArrayList<>(pane.getChildren()));
-        } else {
-            PCLTheme.playEntrance(content);
-        }
+        PCLTheme.playPageEnter(content);
     }
 }

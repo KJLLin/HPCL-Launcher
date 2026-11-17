@@ -37,7 +37,9 @@ import org.jackhuang.hmcl.ui.SVG;
 import org.jackhuang.hmcl.ui.decorator.DecoratorPage;
 
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /// PCL2 `PageSelectRight.xaml`: a card flow of installed versions, an empty
 /// state ("无可用版本" + a download button) and a centred `MyLoading` card
@@ -54,6 +56,10 @@ public final class PCLVersionSelectPage extends StackPane implements DecoratorPa
     private final ScrollPane scroll = new ScrollPane(flow);
     private final PCLPageLoader loader = new PCLPageLoader("正在获取版本列表", true);
     private final VBox emptyCard = new VBox(10);
+    /// PCL2 `PageSpeedLeft.RightCards` reuses card nodes between refreshes.
+    /// Rebuilding every version card on each visit was the second largest
+    /// source of the "more" page jank.
+    private final Map<String, VBox> cardCache = new LinkedHashMap<>();
 
     public PCLVersionSelectPage() {
         getStyleClass().add("hpcl-hub-page");
@@ -80,7 +86,7 @@ public final class PCLVersionSelectPage extends StackPane implements DecoratorPa
 
         // PCL PageLoaderInit: LoaderWait -> LoaderEnter -> LoaderStayForce ->
         // LoaderExit -> ContentEnter, with the pickaxe card fading out first.
-        loader.show();
+        loader.showImmediately();
         reload();
     }
 
@@ -107,7 +113,7 @@ public final class PCLVersionSelectPage extends StackPane implements DecoratorPa
 
     /// Enumerates the installed versions and plays PCL's loader exit.
     public void reload() {
-        loader.show();
+        loader.showImmediately();
         javafx.animation.PauseTransition wait =
                 new javafx.animation.PauseTransition(Duration.millis(560));
         wait.setOnFinished(e -> {
@@ -115,10 +121,26 @@ public final class PCLVersionSelectPage extends StackPane implements DecoratorPa
             try {
                 var versions = GameDirectoryManager.getSelectedRepository().getVersions();
                 String selected = GameDirectoryManager.getSelectedRepository().getSelectedInstance();
+                List<String> visibleIds = new ArrayList<>();
                 for (Version v : versions) {
                     if (v.isHidden()) continue;
-                    cards.add(versionCard(v, v.getId().equals(selected)));
+                    visibleIds.add(v.getId());
+                    VBox card = cardCache.get(v.getId());
+                    if (card == null) {
+                        card = versionCard(v, false);
+                        cardCache.put(v.getId(), card);
+                    }
+                    cards.add(card);
+                    // Only the selection badge changes between refreshes.
+                    Object badge = card.getProperties().get("hpcl.version.badge");
+                    if (badge instanceof Label label) {
+                        boolean isSelected = v.getId().equals(selected);
+                        label.setText(isSelected ? "当前版本" : "选择");
+                        label.getStyleClass().removeAll("hpcl-hub-badge", "hpcl-hub-link");
+                        label.getStyleClass().add(isSelected ? "hpcl-hub-badge" : "hpcl-hub-link");
+                    }
                 }
+                cardCache.keySet().retainAll(visibleIds);
             } catch (Exception ignored) {
             }
             loader.setProgress(1);
@@ -161,6 +183,7 @@ public final class PCLVersionSelectPage extends StackPane implements DecoratorPa
         HBox row = new HBox(12, iconBox, labels, spring, badge);
         row.setAlignment(Pos.CENTER_LEFT);
         card.getChildren().setAll(row);
+        card.getProperties().put("hpcl.version.badge", badge);
         card.setOnMouseClicked(e -> {
             GameDirectoryManager.setSelectedInstance(version.getId());
             Controllers.getRootPage().getMainPage().setCurrentGame(version.getId());

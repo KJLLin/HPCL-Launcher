@@ -22,6 +22,9 @@ import javafx.animation.Interpolator;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
 import javafx.animation.Timeline;
+import javafx.animation.Transition;
+import javafx.beans.property.DoubleProperty;
+import javafx.beans.property.SimpleDoubleProperty;
 import javafx.geometry.Bounds;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -80,8 +83,12 @@ public final class PCLLoading extends VBox {
     private static final int WINDUP_DELAY = 250;
     private static final int WINDUP_TIME = 350;
     private static final int CHOP_TIME = 900;
-    private static final int SETTLE_TIME = 900;
-    private static final int LOOP_TIME = WINDUP_DELAY + WINDUP_TIME + CHOP_TIME + SETTLE_TIME;
+    /// PCL2 `AniLoop`: the wind-up ends at 600 ms, then the +50 (OutFluent)
+    /// and +25 (OutElastic) relative rotations run in parallel for 900 ms.
+    /// The sparks fire at the START of the down-swing (600 ms), and the loop
+    /// restarts at 1500 ms — not 2400 ms as an earlier HPCL version assumed.
+    private static final int STRIKE_AT = WINDUP_DELAY + WINDUP_TIME;
+    private static final int LOOP_TIME = STRIKE_AT + CHOP_TIME;
 
     private static final double ICON_WIDTH = 60;
     private static final double ICON_HEIGHT = 47;
@@ -98,13 +105,16 @@ public final class PCLLoading extends VBox {
     private final SVGPath errorCross = new SVGPath();
     private final Rectangle ground = new Rectangle(25, 2, NORMAL_INK);
     private final Label textLabel = new Label();
-    /// PCL2 `AniLoop` is ONE animation group: the three relative-angle
-    /// RotateTransforms and the two spark paths are all driven by the same
-    /// clock. Using a single Timeline keeps the sparks exactly in phase with
-    /// the strike (the old code ran a separate 780 ms INDEFINITE Timeline
-    /// against a 2400 ms swing, so sparks fired ~3x per swing).
-    private final Timeline loop;
+    /// PCL2 `AniLoop` is ONE animation group: the relative-angle rotations
+    /// and the two spark paths are all driven by the same clock. A single
+    /// Transition keeps sparks exactly in phase with the strike and avoids
+    /// allocating a Timeline per frame.
+    private final Transition loop;
     private final Timeline errorTimeline;
+    private final Timeline recoverTimeline;
+    /// PCL2 `ErrorAnimation` fades ColorBrush3 -> ColorBrushRedLight over
+    /// 300 ms instead of swapping the colour instantly.
+    private final DoubleProperty errorMix = new SimpleDoubleProperty(0);
 
     private State state = State.STOP;
     private String text = "加载中";
@@ -184,6 +194,9 @@ public final class PCLLoading extends VBox {
 
         loop = buildLoop();
         errorTimeline = buildErrorAnimation();
+        recoverTimeline = buildRecoverAnimation();
+        errorMix.addListener((obs, old, value) ->
+                applyInk(NORMAL_INK.interpolate(ERROR_INK, Math.max(0, Math.min(1, value.doubleValue())))));
 
         setOnMouseClicked(e -> {
             if (state == State.ERROR && onRetry != null) onRetry.run();
@@ -214,67 +227,104 @@ public final class PCLLoading extends VBox {
         return spark;
     }
 
-    /// PCL2 `MyLoading.AniLoop`, verbatim timeline:
-    ///   AaRotateTransform(PathPickaxe, -20-Angle, 350, 250, InBack/Weak)
-    ///   AaRotateTransform(PathPickaxe, +50, 900, , OutFluent, After=True)
-    ///   AaRotateTransform(PathPickaxe, +25, 900, , OutElastic/Weak, After=True)
-    ///   AaCode(show sparks at margin 7/14,41)
-    ///   AaOpacity(sparks, -1, 100, 50) ; AaX(-5/+5, 180, OutFluent) ; AaY(-6, 180)
-    /// Starting angle is 55, so the sequence is 55 -> -20 -> 30 -> 55, with
-    /// the sparks firing at the END of the chop (1500 ms = 250+350+900),
-    /// i.e. when the pickaxe actually hits the ground line — not at the
-    /// beginning of the swing. Everything shares ONE Timeline so phase is exact.
-    private Timeline buildLoop() {
-        int strikeAt = WINDUP_DELAY + WINDUP_TIME + CHOP_TIME;   // 1500 ms
-        Timeline timeline = new Timeline(
-                // --- pickaxe swing ---
-                new KeyFrame(Duration.ZERO,
-                        new KeyValue(pickaxeRotate.angleProperty(), REST_ANGLE, Interpolator.LINEAR)),
-                new KeyFrame(Duration.millis(WINDUP_DELAY),
-                        new KeyValue(pickaxeRotate.angleProperty(), REST_ANGLE, Interpolator.LINEAR)),
-                new KeyFrame(Duration.millis(WINDUP_DELAY + WINDUP_TIME),
-                        new KeyValue(pickaxeRotate.angleProperty(), -20, PCLTheme.IN_BACK_WEAK)),
-                new KeyFrame(Duration.millis(strikeAt),
-                        new KeyValue(pickaxeRotate.angleProperty(), 30, PCLTheme.OUT_MIDDLE)),
-                new KeyFrame(Duration.millis(LOOP_TIME),
-                        new KeyValue(pickaxeRotate.angleProperty(), REST_ANGLE, PCLTheme.ELASTIC_WEAK)),
-                // --- sparks: hidden until the strike ---
-                new KeyFrame(Duration.ZERO,
-                        new KeyValue(sparkLeft.opacityProperty(), 0, Interpolator.LINEAR),
-                        new KeyValue(sparkRight.opacityProperty(), 0, Interpolator.LINEAR)),
-                new KeyFrame(Duration.millis(strikeAt - 1), e -> hideSparks()),
-                new KeyFrame(Duration.millis(strikeAt), e -> {
-                    sparkLeft.setOpacity(1);
-                    sparkRight.setOpacity(1);
-                    sparkLeft.setTranslateX(0);
-                    sparkRight.setTranslateX(0);
-                    sparkLeft.setTranslateY(0);
-                    sparkRight.setTranslateY(0);
-                }),
-                new KeyFrame(Duration.millis(strikeAt + 50),
-                        new KeyValue(sparkLeft.opacityProperty(), 1, Interpolator.LINEAR),
-                        new KeyValue(sparkRight.opacityProperty(), 1, Interpolator.LINEAR)),
-                new KeyFrame(Duration.millis(strikeAt + 180),
-                        new KeyValue(sparkLeft.opacityProperty(), 0, PCLTheme.OUT_MIDDLE),
-                        new KeyValue(sparkRight.opacityProperty(), 0, PCLTheme.OUT_MIDDLE),
-                        new KeyValue(sparkLeft.translateXProperty(), -5, PCLTheme.OUT_MIDDLE),
-                        new KeyValue(sparkRight.translateXProperty(), 5, PCLTheme.OUT_MIDDLE),
-                        new KeyValue(sparkLeft.translateYProperty(), -6, PCLTheme.OUT_MIDDLE),
-                        new KeyValue(sparkRight.translateYProperty(), -6, PCLTheme.OUT_MIDDLE))
-        );
-        timeline.setCycleCount(Animation.INDEFINITE);
-        return timeline;
+    /// PCL2 `MyLoading.AniLoop`, reproduced from
+    /// `Controls_MyLoading.xaml.vb:182-205`:
+    ///   AaRotateTransform(-20 - Angle, 350, 250, InBack/Weak)  -> 55 to -20
+    ///   AaRotateTransform(+50, 900, After=True, OutFluent)      -> -20 to 30
+    ///   AaRotateTransform(+25, 900, OutElastic/Weak)            -> +25 layered
+    ///   AaCode(sparks at margin 7/14,41) at 600 ms
+    ///   AaOpacity(-1, 100, 50) / AaX(±5, 180) / AaY(-6, 180)
+    ///   AaCode(restart) at 1500 ms
+    /// A single Transition reproduces the *sum* of the two parallel relative
+    /// rotations per frame; separate KeyFrames cannot express that overlay.
+    private Transition buildLoop() {
+        return new SwingTransition();
     }
 
-    /// PCL `ErrorAnimation`: cross fades in after 300ms (plus a 400ms wait if
-    /// the swing has not landed yet) and pops with `AniEaseOutBack`.
+    private final class SwingTransition extends Transition {
+        SwingTransition() {
+            setCycleDuration(Duration.millis(LOOP_TIME));
+            setInterpolator(Interpolator.LINEAR);
+            setCycleCount(Animation.INDEFINITE);
+        }
+
+        @Override
+        protected void interpolate(double fraction) {
+            double t = fraction * LOOP_TIME;
+            double angle;
+            if (t < WINDUP_DELAY) {
+                angle = REST_ANGLE;
+            } else if (t < STRIKE_AT) {
+                double p = (t - WINDUP_DELAY) / WINDUP_TIME;
+                angle = REST_ANGLE + (-20 - REST_ANGLE)
+                        * PCLTheme.IN_BACK_WEAK.interpolate(0, 1, p);
+            } else {
+                double p = Math.min(1, (t - STRIKE_AT) / CHOP_TIME);
+                angle = -20
+                        + 50 * PCLTheme.OUT_MIDDLE.interpolate(0, 1, p)
+                        + 25 * PCLTheme.ELASTIC_WEAK.interpolate(0, 1, p);
+            }
+            pickaxeRotate.setAngle(angle);
+            updateSparks(t);
+        }
+    }
+
+    /// Sparks appear at the start of the down-swing (600 ms), hold 50 ms,
+    /// fade over 100 ms and drift ±5 / -6 px over 180 ms with OutFluent.
+    private void updateSparks(double t) {
+        if (t < STRIKE_AT) {
+            hideSparks();
+            return;
+        }
+        double st = t - STRIKE_AT;
+        double opacity = st <= 50 ? 1 : 1 - clamp01((st - 50) / 100);
+        sparkLeft.setOpacity(opacity);
+        sparkRight.setOpacity(opacity);
+        double move = PCLTheme.OUT_MIDDLE.interpolate(0, 1, clamp01(st / 180));
+        sparkLeft.setTranslateX(-5 * move);
+        sparkRight.setTranslateX(5 * move);
+        sparkLeft.setTranslateY(-6 * move);
+        sparkRight.setTranslateY(-6 * move);
+    }
+
+    private static double clamp01(double value) {
+        return value < 0 ? 0 : (value > 1 ? 1 : value);
+    }
+
+    /// PCL `ErrorAnimation`: waits 400 ms if the pickaxe has not landed yet,
+    /// then animates ColorBrush3 -> ColorBrushRedLight over 300 ms, fades the
+    /// cross in over 100 ms and pops it with OutBack over 400 ms.
     private Timeline buildErrorAnimation() {
         return new Timeline(
-                new KeyFrame(Duration.millis(300),
+                new KeyFrame(Duration.ZERO,
+                        new KeyValue(errorMix, 0, Interpolator.LINEAR),
+                        new KeyValue(errorCross.opacityProperty(), 0, Interpolator.LINEAR),
+                        new KeyValue(errorCross.scaleXProperty(), 0.6, Interpolator.LINEAR),
+                        new KeyValue(errorCross.scaleYProperty(), 0.6, Interpolator.LINEAR)),
+                new KeyFrame(Duration.millis(400),
+                        new KeyValue(errorMix, 0, Interpolator.LINEAR),
+                        new KeyValue(errorCross.opacityProperty(), 0, Interpolator.LINEAR)),
+                new KeyFrame(Duration.millis(500),
                         new KeyValue(errorCross.opacityProperty(), 1, PCLTheme.OUT_WEAK)),
                 new KeyFrame(Duration.millis(700),
+                        new KeyValue(errorMix, 1, PCLTheme.OUT_WEAK)),
+                new KeyFrame(Duration.millis(800),
                         new KeyValue(errorCross.scaleXProperty(), 1, PCLTheme.BACK_MIDDLE),
                         new KeyValue(errorCross.scaleYProperty(), 1, PCLTheme.BACK_MIDDLE))
+        );
+    }
+
+    /// PCL `ErrorAnimation(isError:=False)`: fade the cross out, shrink it
+    /// back to 0.5 and restore ColorBrush3.
+    private Timeline buildRecoverAnimation() {
+        return new Timeline(
+                new KeyFrame(Duration.millis(100),
+                        new KeyValue(errorCross.opacityProperty(), 0, PCLTheme.OUT_WEAK)),
+                new KeyFrame(Duration.millis(200),
+                        new KeyValue(errorCross.scaleXProperty(), 0.6, PCLTheme.OUT_MIDDLE),
+                        new KeyValue(errorCross.scaleYProperty(), 0.6, PCLTheme.OUT_MIDDLE)),
+                new KeyFrame(Duration.millis(300),
+                        new KeyValue(errorMix, 0, PCLTheme.OUT_WEAK))
         );
     }
 
@@ -364,12 +414,20 @@ public final class PCLLoading extends VBox {
     /// Starts the swing loop (idempotent). Mirrors `LoadingState = Run`.
     public void start() {
         if (state == State.RUN) return;
+        boolean wasError = state == State.ERROR;
         state = State.RUN;
-        applyInk(NORMAL_INK);
+        errorTimeline.stop();
+        if (wasError && AnimationUtils.isAnimationEnabled()) {
+            // PCL2 plays a recovery animation instead of snapping back.
+            recoverTimeline.playFromStart();
+        } else {
+            recoverTimeline.stop();
+            errorMix.set(0);
+            applyInk(NORMAL_INK);
+        }
         errorCross.setOpacity(0);
         errorCross.setScaleX(0.6);
         errorCross.setScaleY(0.6);
-        errorTimeline.stop();
         pickaxeGroupVisible(true);
         refreshText();
         if (hasAnimation) startLoop();
@@ -397,26 +455,32 @@ public final class PCLLoading extends VBox {
         state = State.STOP;
         loop.stop();
         errorTimeline.stop();
+        recoverTimeline.stop();
+        errorMix.set(0);
         errorCross.setOpacity(0);
         applyInk(NORMAL_INK);
         park();
         refreshText();
     }
 
-    /// PCL `LoadingState = Error`: cross + red foreground + error caption.
+    /// PCL `LoadingState = Error`: cross + red foreground + error caption,
+    /// with the 400 ms wait and 300 ms colour fade from the VB source.
     public void setError(String message) {
         state = State.ERROR;
         if (message != null && !message.isEmpty()) textError = message;
         loop.stop();
+        recoverTimeline.stop();
         hideSparks();
         pickaxeRotate.setAngle(REST_ANGLE);
-        applyInk(ERROR_INK);
         refreshText();
         errorCross.setOpacity(0);
         errorCross.setScaleX(0.6);
         errorCross.setScaleY(0.6);
-        if (AnimationUtils.isAnimationEnabled()) errorTimeline.playFromStart();
-        else {
+        if (AnimationUtils.isAnimationEnabled()) {
+            errorMix.set(0);
+            errorTimeline.playFromStart();
+        } else {
+            errorMix.set(1);
             errorCross.setOpacity(1);
             errorCross.setScaleX(1);
             errorCross.setScaleY(1);

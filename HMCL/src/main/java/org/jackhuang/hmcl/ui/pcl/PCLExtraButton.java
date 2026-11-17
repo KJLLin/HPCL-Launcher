@@ -81,6 +81,9 @@ public class PCLExtraButton extends StackPane {
     private @Nullable Runnable onClick;
     private @Nullable Timeline showTimeline;
     private @Nullable Timeline pressTimeline;
+    /// Reused for every hover transition so rapid pointer moves do not stack
+    /// several Timelines writing the same hoverMix property.
+    private @Nullable Timeline hoverTimeline;
 
     /// Builds one extra button.
     ///
@@ -295,13 +298,16 @@ public class PCLExtraButton extends StackPane {
             hoverMix.set(target);
             return;
         }
-        new Timeline(new KeyFrame(Duration.millis(millis),
-                new KeyValue(hoverMix, target, javafx.animation.Interpolator.LINEAR))).play();
+        if (hoverTimeline != null) hoverTimeline.stop();
+        hoverTimeline = new Timeline(new KeyFrame(Duration.millis(millis),
+                new KeyValue(hoverMix, target, javafx.animation.Interpolator.LINEAR)));
+        hoverTimeline.play();
     }
 
     /// Stops running animations when the window closes.
     public void dispose() {
         if (showTimeline != null) showTimeline.stop();
         if (pressTimeline != null) pressTimeline.stop();
+        if (hoverTimeline != null) hoverTimeline.stop();
     }
 }
