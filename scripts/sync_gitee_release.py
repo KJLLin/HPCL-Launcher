@@ -198,6 +198,13 @@ def main():
             print(f"  已存在发行版 #{target.get('id')}")
 
         release_id = target["id"]
+
+        # 已被额度策略归档的版本不再补传附件，避免"删了又传、传了又删"的死循环
+        if ARCHIVE_NOTE and ARCHIVE_NOTE in (target.get("body") or ""):
+            print("  已在 Gitee 归档，跳过附件同步")
+            handled += 1
+            continue
+
         existing = {a.get("name") for a in (target.get("assets") or [])}
 
         pending = []
