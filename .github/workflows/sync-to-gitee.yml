@@ -1,0 +1,29 @@
+name: Sync to Gitee
+
+on:
+  workflow_dispatch:
+  push:
+
+concurrency:
+  group: sync-to-gitee
+  cancel-in-progress: true
+
+jobs:
+  mirror:
+    name: Mirror GitHub to Gitee
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Push mirror to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GITEE_TOKEN}" ]; then
+            echo "::warning::未配置 GITEE_TOKEN，本次跳过同步"
+            exit 0
+          fi
+          git clone --mirror "https://github.com/${{ github.repository }}.git" repo
+          cd repo
+          git push -f --prune "https://kjllin:${GITEE_TOKEN}@gitee.com/kjllin/hpcl-launcher.git" \
+            "refs/heads/*:refs/heads/*" "refs/tags/*:refs/tags/*"
