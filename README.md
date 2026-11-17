@@ -165,7 +165,8 @@ HPCL 是 fork，**不连接 HMCL 官方更新端点**（否则会被官方包覆
 
 > 通道判定同时看 GitHub 的 `prerelease` 标记和 tag 中的预览词，避免有人忘了勾 pre-release 却把 SNAPSHOT 发到稳定通道。BETA 能看到稳定版，STABLE 永远不会收到预发布。
 
-- **首次启动**只询问一次是否开启，**不询问通道**：通道按当前构建自动决定（`stable` 构建 → 稳定版，`dev` / `beta` / `nightly` 及其他预览构建 → 测试版），写入 `UserState.autoUpdatePromptVersion`。已开启自动检测的用户升级后不会被弹窗打扰，但通道会自动对齐当前构建。之后可在「设置 → 全局设置 → 更新」手动更改 `autoUpdateCheckEnabled`、`autoUpdateChannel`、`autoUpdateMode`。
+- **首次启动**只询问一次是否开启，**不询问通道**：通道按当前构建自动决定（`stable` 构建 → 稳定版，`dev` / `beta` / `nightly` 及其他预览构建 → 测试版）。该询问**只对全新安装触发**；已有安装升级时只升级内部标记 `autoUpdatePromptVersion`，不会覆盖开关或通道。之后可在「设置 → 全局设置 → 更新」手动更改 `autoUpdateCheckEnabled`、`autoUpdateChannel`、`autoUpdateMode`。
+- **热更新保留设置**：辅助进程替换 jar/exe 后，用**原工作目录**、**原 JVM 参数**（含 `-Dhpcl.home` / `-Dhpcl.dir` / `-Dhpcl.dependencies.dir`）重启，并通过 `HPCL_USER_HOME` / `HPCL_LOCAL_HOME` / `HPCL_DEPENDENCIES_DIR` 环境变量兜底 `.exe` 启动。因此更新通道、自动检测开关、更新方式、账号、游戏目录等配置不会因更新而重置。
 - **网络失败静默**：`api.github.com` 在国内可能超时、被限流（HTTP 403 rate limit）或返回不完整数据。自动检测遇到任何失败只写日志，**不弹窗、不 Toast**；只有用户在关于页 / 设置页手动点「立即检查」时才会报告失败。「当前通道暂无可用版本」同样静默，手动检查时给出准确提示而不是通用错误。
 - **更新方式**（`autoUpdateMode`）：
   - `NOTIFY`（默认）：Toast + PCL 风格确认卡片，可立即更新或稍后，标题带上当前通道名。

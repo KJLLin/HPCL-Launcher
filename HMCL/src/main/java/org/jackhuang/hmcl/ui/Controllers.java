@@ -638,18 +638,16 @@ public final class Controllers {
         }
 
         // HPCL first-run opt-in for its own GitHub Release channel. Asked once
-        // per user, queued behind the EULA card. The channel is not a question:
-        // it follows the running build automatically (stable build -> stable
-        // channel, every preview build -> beta). A failed detection caused by
-        // GitHub being unreachable is silent by design.
+        // per fresh install, queued behind the EULA card. The channel is not a
+        // question: it follows the running build automatically (stable build ->
+        // stable channel, every preview build -> beta). An update must never
+        // touch an existing installation's switch or channel, otherwise a hot
+        // update would silently reset the user's own choice.
         if (SettingsManager.userState().autoUpdatePromptVersionProperty().get() < 3) {
+            int previousPrompt = SettingsManager.userState().autoUpdatePromptVersionProperty().get();
             SettingsManager.userState().autoUpdatePromptVersionProperty().set(3);
-            AutoUpdateChannel channel = AutoUpdateChannel.forCurrentBuild();
-            if (settings().autoUpdateCheckEnabledProperty().get()) {
-                // Already opted in: keep the switch, but align the channel with
-                // this build instead of prompting again.
-                settings().autoUpdateChannelProperty().set(channel);
-            } else {
+            if (previousPrompt == 0 && !settings().autoUpdateCheckEnabledProperty().get()) {
+                AutoUpdateChannel channel = AutoUpdateChannel.forCurrentBuild();
                 Controllers.dialogLater(new MessageDialogPane.Builder(
                         i18n("update.first_run", i18n("update.auto_channel." + channel.getId())),
                         i18n("update"), MessageType.QUESTION)

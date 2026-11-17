@@ -18,17 +18,22 @@
 package org.jackhuang.hmcl.upgrade;
 
 import org.jackhuang.hmcl.EntryPoint;
+import org.jackhuang.hmcl.Metadata;
+import org.jackhuang.hmcl.util.SwingUtils;
 import org.jackhuang.hmcl.util.io.JarUtils;
 import org.jackhuang.hmcl.util.platform.OperatingSystem;
-import org.jackhuang.hmcl.util.SwingUtils;
 
+import java.io.File;
 import java.io.IOException;
+import java.lang.management.ManagementFactory;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 
@@ -39,26 +44,43 @@ import static org.jackhuang.hmcl.util.logging.Logger.LOG;
 /// downloaded package: it waits for the old process to exit, writes the new
 /// package over the old path (keeping the PE stub for .exe/.sh builds) and
 /// relaunches the launcher.
+///
+/// The relaunch deliberately restores the previous working directory, JVM
+/// options and resolved config roots. Otherwise a hot update would start the
+/// new build against a different `.hpcl` directory and every setting - the
+/// update channel, the auto-check switch, accounts - would look reset.
 public final class HPCLUpdateInstaller {
     private HPCLUpdateInstaller() {
     }
 
     private static final String APPLY_FLAG = "--hpcl-apply-to";
+    private static final String WORKDIR_FLAG = "--hpcl-workdir";
+    private static final String JVMARGS_FLAG = "--hpcl-jvm-args";
 
     /// @return whether the caller should exit (this is the helper process).
     public static boolean processArguments(String[] args) {
-        for (int i = 0; i + 1 < args.length; i++) {
-            if (APPLY_FLAG.equals(args[i])) {
-                try {
-                    install(Paths.get(args[i + 1]));
-                } catch (Throwable e) {
-                    LOG.warning("Failed to apply HPCL update", e);
-                    SwingUtils.showErrorDialog("Failed to apply HPCL update: " + e);
+        Path target = null;
+        String workDir = null;
+        List<String> jvmArgs = List.of();
+        for (int i = 0; i < args.length - 1; i++) {
+            switch (args[i]) {
+                case APPLY_FLAG -> target = Paths.get(args[++i]);
+                case WORKDIR_FLAG -> workDir = args[++i];
+                case JVMARGS_FLAG -> jvmArgs = decode(args[++i]);
+                default -> {
                 }
-                return true;
             }
         }
-        return false;
+        if (target == null) {
+            return false;
+        }
+        try {
+            install(target, workDir, jvmArgs);
+        } catch (Throwable e) {
+            LOG.warning("Failed to apply HPCL update", e);
+            SwingUtils.showErrorDialog("Failed to apply HPCL update: " + e);
+        }
+        return true;
     }
 
     /// Called on the JavaFX thread after the download was verified.
@@ -70,8 +92,24 @@ public final class HPCLUpdateInstaller {
         Path staged = self.resolveSibling(".hpcl-update-" + System.currentTimeMillis() + suffix);
         Files.copy(downloaded, staged, StandardCopyOption.REPLACE_EXISTING);
 
-        List<String> command = new ArrayList<>(Arrays.asList(
-                javaBinary(), "-jar", staged.toString(), APPLY_FLAG, self.toAbsolutePath().toString()));
+        // Snapshot everything the new process needs to land in the same
+        // configuration directory as the current one.
+        List<String> jvmArgs = new ArrayList<>(ManagementFactory.getRuntimeMXBean().getInputArguments());
+        addIfAbsent(jvmArgs, "hpcl.home", Metadata.HMCL_USER_HOME.toString());
+        addIfAbsent(jvmArgs, "hpcl.dir", Metadata.HMCL_LOCAL_HOME.toString());
+        addIfAbsent(jvmArgs, "hpcl.dependencies.dir", Metadata.DEPENDENCIES_DIRECTORY.toString());
+
+        List<String> command = new ArrayList<>();
+        command.add(javaBinary());
+        command.addAll(jvmArgs);
+        command.add("-jar");
+        command.add(staged.toString());
+        command.add(APPLY_FLAG);
+        command.add(self.toAbsolutePath().toString());
+        command.add(WORKDIR_FLAG);
+        command.add(System.getProperty("user.dir", ""));
+        command.add(JVMARGS_FLAG);
+        command.add(encode(jvmArgs));
         LOG.info("Starting HPCL update helper: " + command);
         new ProcessBuilder(command)
                 .directory(self.toAbsolutePath().getParent().toFile())
@@ -80,7 +118,7 @@ public final class HPCLUpdateInstaller {
         EntryPoint.exit(0);
     }
 
-    private static void install(Path target) throws Exception {
+    private static void install(Path target, String workDir, List<String> jvmArgs) throws Exception {
         Path self = JarUtils.thisJarPath();
         if (self == null) {
             throw new IOException("Cannot locate the staged update package");
@@ -110,7 +148,7 @@ public final class HPCLUpdateInstaller {
         // deleted on Windows, so leave it for the next cleanup round.
         try (var stream = Files.list(target.toAbsolutePath().getParent())) {
             stream.filter(p -> p.getFileName().toString().startsWith(".hpcl-update-")
-                    && !p.toAbsolutePath().equals(self.toAbsolutePath()))
+                            && !p.toAbsolutePath().equals(self.toAbsolutePath()))
                     .forEach(p -> {
                         try {
                             Files.deleteIfExists(p);
@@ -119,22 +157,58 @@ public final class HPCLUpdateInstaller {
                     });
         }
 
-        spawn(target);
+        spawn(target, workDir, jvmArgs);
     }
 
-    private static void spawn(Path target) throws IOException {
+    private static void spawn(Path target, String workDir, List<String> jvmArgs) throws IOException {
         List<String> command = new ArrayList<>();
-        if (isExecutable(target) && OperatingSystem.CURRENT_OS == OperatingSystem.WINDOWS) {
+        boolean directExe = isExecutable(target) && OperatingSystem.CURRENT_OS == OperatingSystem.WINDOWS;
+        if (directExe) {
             command.add(target.toAbsolutePath().toString());
         } else {
             command.add(javaBinary());
+            command.addAll(jvmArgs);
             command.add("-jar");
             command.add(target.toAbsolutePath().toString());
         }
-        new ProcessBuilder(command)
-                .directory(target.toAbsolutePath().getParent().toFile())
-                .inheritIO()
-                .start();
+        ProcessBuilder builder = new ProcessBuilder(command);
+        // Restore the original working directory: the default `.hpcl` location
+        // is resolved from it, so changing it would hide every setting.
+        File previousDir = workDir == null || workDir.isBlank() ? null : new File(workDir);
+        builder.directory(previousDir != null && previousDir.isDirectory()
+                ? previousDir : target.toAbsolutePath().getParent().toFile());
+        // The packaged .exe cannot receive JVM options, so export the resolved
+        // roots as environment variables too (Metadata accepts both).
+        builder.environment().put("HPCL_USER_HOME", Metadata.HMCL_USER_HOME.toString());
+        builder.environment().put("HPCL_LOCAL_HOME", Metadata.HMCL_LOCAL_HOME.toString());
+        builder.environment().put("HPCL_DEPENDENCIES_DIR", Metadata.DEPENDENCIES_DIRECTORY.toString());
+        builder.inheritIO().start();
+    }
+
+    private static void addIfAbsent(List<String> args, String key, String value) {
+        String prefix = "-D" + key + "=";
+        for (String arg : args) {
+            if (arg.startsWith(prefix)) {
+                return;
+            }
+        }
+        args.add(prefix + value);
+    }
+
+    private static String encode(List<String> args) {
+        return Base64.getEncoder().encodeToString(
+                String.join("\u0000", args).getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static List<String> decode(String value) {
+        if (value == null || value.isEmpty()) {
+            return List.of();
+        }
+        String joined = new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
+        if (joined.isEmpty()) {
+            return List.of();
+        }
+        return new ArrayList<>(Arrays.asList(joined.split("\u0000", -1)));
     }
 
     private static boolean isExecutable(Path path) {
