@@ -35,7 +35,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           GITEE_OWNER: kjllin
           GITEE_REPO: hpcl-launcher
-          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
         run: |
           set -euo pipefail
           if [ -z "${GITEE_TOKEN}" ]; then
