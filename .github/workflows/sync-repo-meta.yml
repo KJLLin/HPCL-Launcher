@@ -29,7 +29,8 @@ jobs:
           GH_REPO: ${{ github.repository }}
           GITEE_OWNER: kjllin
           GITEE_REPO: hpcl-launcher
-          SYNC_DESCRIPTION: "false"
+          SYNC_DESCRIPTION: "true"
+          GITEE_DESCRIPTION_SUFFIX: "（自动同步自 GitHub）"
         run: |
           set -euo pipefail
           if [ -z "${GITEE_TOKEN}" ]; then

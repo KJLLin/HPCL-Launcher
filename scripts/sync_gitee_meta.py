@@ -14,6 +14,7 @@ GITEE_REPO = os.getenv("GITEE_REPO", "hpcl-launcher")
 GITEE_TOKEN = os.getenv("GITEE_TOKEN", "")
 GH_TOKEN = os.getenv("GITHUB_TOKEN", "")
 SYNC_DESCRIPTION = os.getenv("SYNC_DESCRIPTION", "true").lower() == "true"
+DESCRIPTION_SUFFIX = os.getenv("GITEE_DESCRIPTION_SUFFIX", "").strip()
 
 gh = requests.Session()
 gh.headers["Accept"] = "application/vnd.github+json"
@@ -54,9 +55,13 @@ def sync_repo():
     )
     payload = {}
 
-    src_desc = src.get("description") or ""
-    if SYNC_DESCRIPTION and src_desc and src_desc != (dst.get("description") or ""):
-        payload["description"] = src_desc
+    # GitHub 描述 + Gitee 专属备注；若 GitHub 描述里已经写了这句，就不重复追加
+    src_desc = (src.get("description") or "").strip()
+    desired_desc = src_desc
+    if src_desc and DESCRIPTION_SUFFIX and DESCRIPTION_SUFFIX not in src_desc:
+        desired_desc = f"{src_desc}{DESCRIPTION_SUFFIX}"
+    if SYNC_DESCRIPTION and desired_desc and desired_desc != (dst.get("description") or ""):
+        payload["description"] = desired_desc
 
     src_home = src.get("homepage") or ""
     if src_home and src_home != (dst.get("homepage") or ""):
