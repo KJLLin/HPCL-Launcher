@@ -1,0 +1,40 @@
+name: Sync Repo Meta to Gitee
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "37 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sync-repo-meta
+  cancel-in-progress: true
+
+jobs:
+  meta:
+    if: ${{ github.repository == 'KJLLin/HPCL-Launcher' }}
+    name: Sync description, labels and milestones
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Sync to Gitee
+        env:
+          GITEE_TOKEN: ${{ secrets.GITEE_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          GITEE_OWNER: kjllin
+          GITEE_REPO: hpcl-launcher
+          SYNC_DESCRIPTION: "true"
+        run: |
+          set -euo pipefail
+          if [ -z "${GITEE_TOKEN}" ]; then
+            echo "::warning::未配置 GITEE_TOKEN，跳过元信息同步"
+            exit 0
+          fi
+          python3 -m pip install --quiet --disable-pip-version-check requests
+          python3 scripts/sync_gitee_meta.py
