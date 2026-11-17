@@ -17,6 +17,8 @@
  */
 package org.jackhuang.hmcl.setting;
 
+import org.jackhuang.hmcl.Metadata;
+
 /// Which GitHub Releases HPCL's self-update channel subscribes to.
 ///
 /// The mapping to the publisher side is deliberately simple: a release
@@ -30,9 +32,21 @@ public enum AutoUpdateChannel {
     /// Every published release, pre-releases included.
     BETA("beta");
 
-    /// HPCL itself is currently published as a dev / SNAPSHOT pre-release,
-    /// so the default follows the beta channel.
-    public static final AutoUpdateChannel DEFAULT = BETA;
+    /// The channel that matches the running build. `stable` builds follow the
+    /// stable channel; every preview build (dev / beta / nightly / unknown)
+    /// follows beta, otherwise a SNAPSHOT build could never receive the next
+    /// SNAPSHOT since stable deliberately filters pre-releases out.
+    public static AutoUpdateChannel forBuild(String buildChannel) {
+        return "stable".equalsIgnoreCase(buildChannel) ? STABLE : BETA;
+    }
+
+    /// The channel for the currently running HPCL build.
+    public static AutoUpdateChannel forCurrentBuild() {
+        return forBuild(Metadata.BUILD_CHANNEL);
+    }
+
+    /// Default for a fresh configuration: follow this build's own channel.
+    public static final AutoUpdateChannel DEFAULT = forCurrentBuild();
 
     private final String id;
 

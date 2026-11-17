@@ -161,11 +161,11 @@ HPCL 是 fork，**不连接 HMCL 官方更新端点**（否则会被官方包覆
 | 通道 | 设置值 | 匹配的 Release | 当前状态 |
 |---|---|---|---|
 | **稳定版** | `STABLE` | `prerelease=false`，且 tag 不含 `SNAPSHOT / dev / beta / alpha / nightly / rc` 等预览标记 | 暂未发布正式版。手动检查会提示「当前更新通道暂无可用版本」，自动检查静默 |
-| **测试版** | `BETA`（默认） | 所有已发布 Release，含 GitHub pre-release | `v3.16.SNAPSHOT` 即在此通道 |
+| **测试版** | `BETA`（预览构建默认） | 所有已发布 Release，含 GitHub pre-release | `v3.16.SNAPSHOT` 即在此通道 |
 
 > 通道判定同时看 GitHub 的 `prerelease` 标记和 tag 中的预览词，避免有人忘了勾 pre-release 却把 SNAPSHOT 发到稳定通道。BETA 能看到稳定版，STABLE 永远不会收到预发布。
 
-- **首次启动**询问一次是否开启，并同时选择通道（稳定版 / 测试版 / 暂不开启），写入 `UserState.autoUpdatePromptVersion`；之后可在「设置 → 全局设置 → 更新」更改 `autoUpdateCheckEnabled`、`autoUpdateChannel`、`autoUpdateMode`。已经开启自动检测的用户升级后不会被重复询问。
+- **首次启动**只询问一次是否开启，**不询问通道**：通道按当前构建自动决定（`stable` 构建 → 稳定版，`dev` / `beta` / `nightly` 及其他预览构建 → 测试版），写入 `UserState.autoUpdatePromptVersion`。已开启自动检测的用户升级后不会被弹窗打扰，但通道会自动对齐当前构建。之后可在「设置 → 全局设置 → 更新」手动更改 `autoUpdateCheckEnabled`、`autoUpdateChannel`、`autoUpdateMode`。
 - **网络失败静默**：`api.github.com` 在国内可能超时、被限流（HTTP 403 rate limit）或返回不完整数据。自动检测遇到任何失败只写日志，**不弹窗、不 Toast**；只有用户在关于页 / 设置页手动点「立即检查」时才会报告失败。「当前通道暂无可用版本」同样静默，手动检查时给出准确提示而不是通用错误。
 - **更新方式**（`autoUpdateMode`）：
   - `NOTIFY`（默认）：Toast + PCL 风格确认卡片，可立即更新或稍后，标题带上当前通道名。

@@ -638,22 +638,24 @@ public final class Controllers {
         }
 
         // HPCL first-run opt-in for its own GitHub Release channel. Asked once
-        // per user, queued behind the EULA card. The prompt now also picks the
-        // update channel (stable / beta); detection failures caused by GitHub
-        // being unreachable are silent by design.
-        if (SettingsManager.userState().autoUpdatePromptVersionProperty().get() < 2) {
-            SettingsManager.userState().autoUpdatePromptVersionProperty().set(2);
-            // Users who already opted in keep their choice. Only ask again when
-            // the check is still off, so an upgrade never re-prompts enabled users.
-            if (!settings().autoUpdateCheckEnabledProperty().get()) {
+        // per user, queued behind the EULA card. The channel is not a question:
+        // it follows the running build automatically (stable build -> stable
+        // channel, every preview build -> beta). A failed detection caused by
+        // GitHub being unreachable is silent by design.
+        if (SettingsManager.userState().autoUpdatePromptVersionProperty().get() < 3) {
+            SettingsManager.userState().autoUpdatePromptVersionProperty().set(3);
+            AutoUpdateChannel channel = AutoUpdateChannel.forCurrentBuild();
+            if (settings().autoUpdateCheckEnabledProperty().get()) {
+                // Already opted in: keep the switch, but align the channel with
+                // this build instead of prompting again.
+                settings().autoUpdateChannelProperty().set(channel);
+            } else {
                 Controllers.dialogLater(new MessageDialogPane.Builder(
-                        i18n("update.first_run"), i18n("update"), MessageType.QUESTION)
-                        .addAction(i18n("update.first_run.stable"), () ->
-                                enableAutoUpdate(AutoUpdateChannel.STABLE))
-                        .addAction(i18n("update.first_run.beta"), () ->
-                                enableAutoUpdate(AutoUpdateChannel.BETA))
-                        .addCancel(i18n("update.first_run.skip"), () ->
-                                settings().autoUpdateCheckEnabledProperty().set(false))
+                        i18n("update.first_run", i18n("update.auto_channel." + channel.getId())),
+                        i18n("update"), MessageType.QUESTION)
+                        .yesOrNo(
+                                () -> enableAutoUpdate(channel),
+                                () -> settings().autoUpdateCheckEnabledProperty().set(false))
                         .build());
             }
         }
