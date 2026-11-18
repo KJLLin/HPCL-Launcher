@@ -16,8 +16,10 @@ GH_REPO = os.getenv("GH_REPO", "KJLLin/HPCL-Launcher")
 GH_TOKEN = os.getenv("GITHUB_TOKEN", "")
 ONLY_TAG = os.getenv("TAG", "").strip()
 MAX_ASSET_MB = int(os.getenv("MAX_ASSET_MB", "100"))
-MAX_TOTAL_MB = float(os.getenv("MAX_TOTAL_MB", "950"))
+MAX_TOTAL_MB = float(os.getenv("MAX_TOTAL_MB", "900"))
 BUDGET = int(MAX_TOTAL_MB * 1024 * 1024)
+KEEP_STABLE = int(os.getenv("KEEP_STABLE", "2"))
+KEEP_PRERELEASE = int(os.getenv("KEEP_PRERELEASE", "2"))
 ARCHIVE_NOTE = os.getenv("ARCHIVE_NOTE", "").strip()
 
 gh = requests.Session()
@@ -120,6 +122,16 @@ def total_bytes(releases):
     return sum(a.get("size") or 0 for r in releases for a in (r.get("assets") or []))
 
 
+def protected_ids(releases):
+    """最新的 N 个稳定版 + N 个测试版永不清理。"""
+    keep = set()
+    for prerelease, limit in ((False, KEEP_STABLE), (True, KEEP_PRERELEASE)):
+        group = [r for r in releases if bool(r.get("prerelease")) == prerelease]
+        group.sort(key=lambda r: r.get("created_at") or "", reverse=True)
+        keep.update(r["id"] for r in group[:limit])
+    return keep
+
+
 def make_room(keep_release_id, incoming):
     releases = gitee_releases()
     total = total_bytes(releases)
@@ -127,17 +139,24 @@ def make_room(keep_release_id, incoming):
         print(f"  附件额度 {mb(total)} / {MAX_TOTAL_MB:.0f} MB，无需清理")
         return
 
+    keep = protected_ids(releases)
     print(
-        f"  额度不足：现有 {mb(total)} + 新增 {mb(incoming)} > {MAX_TOTAL_MB:.0f} MB，开始清理最早版本"
+        f"  额度不足：现有 {mb(total)} + 新增 {mb(incoming)} > {MAX_TOTAL_MB:.0f} MB，"
+        f"开始清理最早版本（保留最新 {KEEP_STABLE} 个正式版、{KEEP_PRERELEASE} 个测试版）"
     )
+    removable = 0
     for release in sorted(releases, key=lambda r: r.get("created_at") or ""):
         if total + incoming <= BUDGET:
             break
         if release.get("id") == keep_release_id:
             continue
+        if release.get("id") in keep:
+            print(f"    = 保留 {release.get('tag_name')}（在保留名单内）")
+            continue
         assets = release.get("assets") or []
         if not assets:
             continue
+        removable += 1
         for asset in assets:
             delete_asset(release["id"], asset["id"])
             total -= asset.get("size") or 0
@@ -145,7 +164,13 @@ def make_room(keep_release_id, incoming):
         mark_archived(release)
 
     if total + incoming > BUDGET:
-        print("  ! 已无可清理的旧版本，额度仍然不足，本次上传可能失败")
+        if removable:
+            print("  ! 已无可清理的旧版本，额度仍然不足，本次上传可能失败")
+        else:
+            print(
+                f"  ! 除保留名单（{KEEP_STABLE} 正式 + {KEEP_PRERELEASE} 测试）外没有可删的版本，"
+                "额度仍然不足，本次上传可能失败"
+            )
 
 
 def upload(release_id, asset):

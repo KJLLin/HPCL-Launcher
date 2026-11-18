@@ -38,7 +38,9 @@ jobs:
           GITEE_REPO: hpcl-launcher
           TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
           MAX_ASSET_MB: "100"
-          MAX_TOTAL_MB: "950"
+          MAX_TOTAL_MB: "900"
+          KEEP_STABLE: "2"
+          KEEP_PRERELEASE: "2"
           ARCHIVE_NOTE: "> 本版本的安装包已在 Gitee 归档，完整历史版本请前往 [GitHub 主仓库 Releases](https://github.com/KJLLin/HPCL-Launcher/releases) 下载。"
         run: |
           set -euo pipefail
