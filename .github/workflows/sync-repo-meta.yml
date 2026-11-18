@@ -30,7 +30,7 @@ jobs:
           GITEE_REPO: hpcl-launcher
           ALLOWED_REPO: KJLLin/HPCL-Launcher
           SYNC_DESCRIPTION: "true"
-          GITEE_DESCRIPTION_SUFFIX: "　· 镜像仓库（自动同步自 GitHub）"
+          GITEE_DESCRIPTION_SUFFIX: "｜镜像仓库（自动同步自 GitHub）"
           GITEE_HOMEPAGE: "https://github.com/KJLLin/HPCL-Launcher"
         run: |
           set -euo pipefail
