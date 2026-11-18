@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """把仓库元信息、标签、里程碑同步到 Gitee（只增改，不删除）。"""
 import os
+import re
 import sys
 
 import requests
@@ -24,6 +25,13 @@ if GH_TOKEN:
     gh.headers["Authorization"] = f"Bearer {GH_TOKEN}"
 
 errors = []
+
+# Gitee 标签命名规则：2-20 字符，仅汉字/字母/数字/._-/\\ 及全角符号，不含空格
+LABEL_NAME_RE = re.compile(r"^[\u4e00-\u9fa5A-Za-z0-9._\-/\\，。、！？；：（）《》【】“”‘’…·]+$")
+
+
+def label_name_ok(name):
+    return 2 <= len(name) <= 20 and bool(LABEL_NAME_RE.match(name))
 
 
 def gh_get(path, params=None):
@@ -85,10 +93,11 @@ def sync_repo():
     if not payload:
         print("· 仓库元信息已一致")
         return
+    # Gitee 的 PATCH /repos 即使只改描述也要求带上 name
     gitee(
         "PATCH",
         f"/repos/{GITEE_OWNER}/{GITEE_REPO}",
-        data={"access_token": GITEE_TOKEN, **payload},
+        data={"access_token": GITEE_TOKEN, "name": GITEE_REPO, **payload},
     )
     print("· 仓库元信息已更新：" + "、".join(f"{k}={v}" for k, v in payload.items()))
 
@@ -113,11 +122,18 @@ def sync_labels():
             if have and have != color.upper():
                 print(f"  ! 标签「{name}」颜色不同（Gitee {have} / GitHub {color}），接口不支持改色，跳过")
             continue
-        gitee(
-            "POST",
-            f"/repos/{GITEE_OWNER}/{GITEE_REPO}/labels",
-            data={"access_token": GITEE_TOKEN, "name": name, "color": color},
-        )
+        if not label_name_ok(name):
+            print(f"  ! 标签「{name}」不符合 Gitee 命名规则（2-20 字符、不含空格），跳过")
+            continue
+        try:
+            gitee(
+                "POST",
+                f"/repos/{GITEE_OWNER}/{GITEE_REPO}/labels",
+                data={"access_token": GITEE_TOKEN, "name": name, "color": color},
+            )
+        except Exception as exc:
+            print(f"  ! 标签「{name}」创建失败：{exc}")
+            continue
         created += 1
         print(f"  + 新建标签「{name}」#{color}")
     print(f"· 标签：GitHub {len(src)} 个，新建 {created} 个")
