@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """同步 GitHub Release 到 Gitee；附件总量超额度时，清理最早版本并标注归档。"""
+import json
 import os
+import subprocess
 import sys
 import tempfile
 
@@ -180,7 +182,7 @@ def upload(release_id, asset):
     size = asset.get("size") or 0
     if size > MAX_ASSET_MB * 1024 * 1024:
         print(f"  跳过 {asset['name']}：{mb(size)}，超过 Gitee 单附件上限 {MAX_ASSET_MB} MB", flush=True)
-        return False
+        return "skip"
 
     fd, path = tempfile.mkstemp()
     os.close(fd)
@@ -192,16 +194,14 @@ def upload(release_id, asset):
                 for chunk in resp.iter_content(262144):
                     fh.write(chunk)
         local = os.path.getsize(path)
+        url = f"{GITEE_API}/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release_id}/attach_files"
 
         for attempt in (1, 2):
             try:
                 print(f"  上传 {asset['name']}（{mb(local)}）第 {attempt} 次", flush=True)
                 with open(path, "rb") as fh:
                     resp = requests.post(
-                        f"{GITEE_API}/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release_id}/attach_files",
-                        params=params,
-                        files={"file": (asset["name"], fh)},
-                        timeout=(10, 300),
+                        url, params=params, files={"file": (asset["name"], fh)}, timeout=180
                     )
                 if resp.status_code >= 400:
                     raise RuntimeError(f"{resp.status_code} {resp.text[:150]}")
@@ -212,12 +212,32 @@ def upload(release_id, asset):
                     if data.get("id"):
                         delete_asset(release_id, data["id"])
                     continue
-                return True
+                return "ok"
             except Exception as exc:
                 print(f"  ! {asset['name']} 第 {attempt} 次失败：{exc}", flush=True)
 
-        print(f"  ! {asset['name']} 两次上传均失败，跳过", flush=True)
-        return False
+        print(f"  curl 兜底上传 {asset['name']}", flush=True)
+        proc = subprocess.run(
+            [
+                "curl", "-sS", "--max-time", "300",
+                "-F", f"file=@{path};filename={asset['name']}",
+                f"{url}?access_token={GITEE_TOKEN}",
+            ],
+            capture_output=True, text=True,
+        )
+        if proc.returncode == 0:
+            try:
+                data = json.loads(proc.stdout)
+            except Exception:
+                data = {}
+            if data.get("size") == local:
+                return "ok"
+            print(f"  ! curl 返回大小不符：{data.get('size')} / {local}", flush=True)
+        else:
+            print(f"  ! curl 兜底失败：{proc.stderr.strip()[:200]}", flush=True)
+
+        print(f"  ! {asset['name']} 全部尝试失败", flush=True)
+        return "fail"
     finally:
         if os.path.exists(path):
             os.remove(path)
@@ -277,11 +297,15 @@ def main():
             make_room(release_id, sum(a.get("size") or 0 for a in pending))
             for asset in pending:
                 try:
-                    if upload(release_id, asset):
-                        print(f"  已上传 {asset['name']}")
+                    result = upload(release_id, asset)
                 except Exception as exc:
                     failures.append(f"{tag}/{asset['name']}: {exc}")
-                    print(f"  上传失败 {asset['name']}: {exc}")
+                    print(f"  上传异常 {asset['name']}: {exc}", flush=True)
+                    continue
+                if result == "ok":
+                    print(f"  已上传 {asset['name']}", flush=True)
+                elif result == "fail":
+                    failures.append(f"{tag}/{asset['name']}: 上传失败")
 
         handled += 1
 
