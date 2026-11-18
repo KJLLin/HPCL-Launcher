@@ -74,6 +74,25 @@ def gitee_releases():
         page += 1
 
 
+def list_attachments(release_id):
+    """release.assets 只有 name 和链接，id/size 必须走 attach_files 接口。"""
+    page, items = 1, []
+    while True:
+        try:
+            batch = gitee(
+                "GET",
+                f"/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release_id}/attach_files",
+                params={**params, "per_page": 100, "page": page},
+            )
+        except Exception as exc:
+            print(f"  ! 读取附件列表失败：{exc}", flush=True)
+            return items
+        if not batch or not isinstance(batch, list):
+            return items
+        items += batch
+        page += 1
+
+
 def gitee_release(tag):
     resp = requests.get(
         f"{GITEE_API}/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/tags/{tag}",
@@ -124,7 +143,9 @@ def mark_archived(release):
 
 
 def total_bytes(releases):
-    return sum(a.get("size") or 0 for r in releases for a in (r.get("assets") or []))
+    return sum(
+        a.get("size") or 0 for r in releases for a in list_attachments(r["id"])
+    )
 
 
 def protected_ids(releases):
@@ -158,7 +179,7 @@ def make_room(keep_release_id, incoming):
         if release.get("id") in keep:
             print(f"    = 保留 {release.get('tag_name')}（在保留名单内）")
             continue
-        assets = release.get("assets") or []
+        assets = list_attachments(release["id"])
         if not assets:
             continue
         removable += 1
@@ -272,10 +293,10 @@ def main():
             handled += 1
             continue
 
-        assets_on_gitee = target.get("assets") or []
+        assets_on_gitee = list_attachments(release_id)
         # 上一次中断留下的 0 字节占位要先清掉，否则会被当成"已存在"跳过
         for old in assets_on_gitee:
-            if (old.get("size") or 0) == 0 and not old["name"].endswith((".zip", ".tar.gz")):
+            if (old.get("size") or 0) == 0 and old.get("id") and not old["name"].endswith((".zip", ".tar.gz")):
                 try:
                     delete_asset(release_id, old["id"])
                     print(f"  清除空附件占位 {old['name']}", flush=True)
