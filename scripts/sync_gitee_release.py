@@ -113,7 +113,10 @@ def mark_archived(release):
     gitee(
         "PATCH",
         f"/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release['id']}",
-        data={"access_token": GITEE_TOKEN, "body": f"{body}\n\n{ARCHIVE_NOTE}".strip()},
+        data={
+            "access_token": GITEE_TOKEN,
+            "body": f"{body}\n\n{ARCHIVE_NOTE}".strip(),
+        },
     )
     print(f"    ~ 已标注归档说明：{release.get('tag_name')}")
 
@@ -136,7 +139,7 @@ def make_room(keep_release_id, incoming):
     releases = gitee_releases()
     total = total_bytes(releases)
     if total + incoming <= BUDGET:
-        print(f"  附件额度 {mb(total)} / {MAX_TOTAL_MB:.0f} MB，无需清理")
+        print(f"  附件额度 {mb(total)} / {max(MAX_TOTAL_MB, 1):.0f} MB，无需清理")
         return
 
     keep = protected_ids(releases)
@@ -176,26 +179,45 @@ def make_room(keep_release_id, incoming):
 def upload(release_id, asset):
     size = asset.get("size") or 0
     if size > MAX_ASSET_MB * 1024 * 1024:
-        print(f"  跳过 {asset['name']}：{mb(size)}，超过 Gitee 单附件上限 {MAX_ASSET_MB} MB")
+        print(f"  跳过 {asset['name']}：{mb(size)}，超过 Gitee 单附件上限 {MAX_ASSET_MB} MB", flush=True)
         return False
 
     fd, path = tempfile.mkstemp()
     os.close(fd)
     try:
-        with gh.get(asset["browser_download_url"], stream=True, timeout=60) as resp:
+        print(f"  下载 {asset['name']}（{mb(size)}）", flush=True)
+        with gh.get(asset["browser_download_url"], stream=True, timeout=(10, 120)) as resp:
             resp.raise_for_status()
             with open(path, "wb") as fh:
                 for chunk in resp.iter_content(262144):
                     fh.write(chunk)
-        with open(path, "rb") as fh:
-            gitee(
-                "POST",
-                f"/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release_id}/attach_files",
-                params=params,
-                files={"file": (asset["name"], fh)},
-                timeout=600,
-            )
-        return True
+        local = os.path.getsize(path)
+
+        for attempt in (1, 2):
+            try:
+                print(f"  上传 {asset['name']}（{mb(local)}）第 {attempt} 次", flush=True)
+                with open(path, "rb") as fh:
+                    resp = requests.post(
+                        f"{GITEE_API}/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release_id}/attach_files",
+                        params=params,
+                        files={"file": (asset["name"], fh)},
+                        timeout=(10, 300),
+                    )
+                if resp.status_code >= 400:
+                    raise RuntimeError(f"{resp.status_code} {resp.text[:150]}")
+                data = resp.json() if resp.content else {}
+                got = data.get("size")
+                if got is not None and got != local:
+                    print(f"  ! {asset['name']} 大小不符（Gitee {got} / 本地 {local}）", flush=True)
+                    if data.get("id"):
+                        delete_asset(release_id, data["id"])
+                    continue
+                return True
+            except Exception as exc:
+                print(f"  ! {asset['name']} 第 {attempt} 次失败：{exc}", flush=True)
+
+        print(f"  ! {asset['name']} 两次上传均失败，跳过", flush=True)
+        return False
     finally:
         if os.path.exists(path):
             os.remove(path)
@@ -230,7 +252,17 @@ def main():
             handled += 1
             continue
 
-        existing = {a.get("name") for a in (target.get("assets") or [])}
+        assets_on_gitee = target.get("assets") or []
+        # 上一次中断留下的 0 字节占位要先清掉，否则会被当成"已存在"跳过
+        for old in assets_on_gitee:
+            if (old.get("size") or 0) == 0 and not old["name"].endswith((".zip", ".tar.gz")):
+                try:
+                    delete_asset(release_id, old["id"])
+                    print(f"  清除空附件占位 {old['name']}", flush=True)
+                except Exception as exc:
+                    print(f"  ! 清除空附件失败 {old['name']}: {exc}", flush=True)
+
+        existing = {a.get("name") for a in assets_on_gitee if (a.get("size") or 0) > 0}
 
         pending = []
         for asset in release.get("assets") or []:
