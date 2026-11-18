@@ -42,6 +42,18 @@ def gh_list(path, params=None):
         page += 1
 
 
+def gh_list_safe(path, params=None):
+    """403 时返回 None 并给出权限提示，避免整个 job 变红。"""
+    try:
+        return gh_list(path, params)
+    except requests.HTTPError as exc:
+        code = exc.response.status_code if exc.response is not None else "?"
+        if code == 403:
+            print(f"  ! 读取 {path} 被拒（403）：workflow 需要 permissions: issues: read")
+            return None
+        raise
+
+
 def gitee(method, path, **kwargs):
     kwargs.setdefault("timeout", 30)
     resp = requests.request(method, f"{GITEE_API}{path}", **kwargs)
@@ -82,7 +94,11 @@ def sync_repo():
 
 
 def sync_labels():
-    src = gh_list(f"/repos/{GH_REPO}/labels")
+    src = gh_list_safe(f"/repos/{GH_REPO}/labels")
+    if src is None:
+        print("· 标签：跳过（GitHub 读取无权限）")
+        return
+
     dst = gitee(
         "GET", f"/repos/{GITEE_OWNER}/{GITEE_REPO}/labels", params={"access_token": GITEE_TOKEN}
     )
@@ -108,7 +124,11 @@ def sync_labels():
 
 
 def sync_milestones():
-    src = gh_list(f"/repos/{GH_REPO}/milestones", {"state": "all"})
+    src = gh_list_safe(f"/repos/{GH_REPO}/milestones", {"state": "all"})
+    if src is None:
+        print("· 里程碑：跳过（GitHub 读取无权限）")
+        return
+
     dst = gitee(
         "GET",
         f"/repos/{GITEE_OWNER}/{GITEE_REPO}/milestones",
