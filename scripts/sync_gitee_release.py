@@ -16,6 +16,7 @@ GH_REPO = os.getenv("GH_REPO", "KJLLin/HPCL-Launcher")
 GH_TOKEN = os.getenv("GITHUB_TOKEN", "")
 ONLY_TAG = os.getenv("TAG", "").strip()
 DOWNLOAD_NOTE = os.getenv("DOWNLOAD_NOTE", "").strip()
+WIPE = os.getenv("WIPE_ATTACHMENTS", "").strip().lower() in ("1", "true", "yes")
 
 gh = requests.Session()
 gh.headers["Accept"] = "application/vnd.github+json"
@@ -60,6 +61,36 @@ def gitee(method, path, **kwargs):
             raise RuntimeError(f"{method} {path} -> {resp.status_code} {resp.text[:200]}")
         return resp.json() if resp.content else {}
     return {}
+
+
+def list_attachments(release_id):
+    """release.assets 不含 id/size，附件必须走专用接口。"""
+    page, items = 1, []
+    while True:
+        batch = gitee(
+            "GET",
+            f"/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release_id}/attach_files",
+            params={**params, "per_page": 100, "page": page},
+        )
+        if not batch or not isinstance(batch, list):
+            return items
+        items += batch
+        page += 1
+
+
+def wipe_attachments(release_id):
+    removed = 0
+    for item in list_attachments(release_id):
+        if not item.get("id"):
+            continue
+        gitee(
+            "DELETE",
+            f"/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release_id}/attach_files/{item['id']}",
+            params=params,
+        )
+        removed += 1
+        print(f"  - 已删除附件 {item['name']}（{(item.get('size') or 0) / 1048576:.1f} MB）", flush=True)
+    return removed
 
 
 def gitee_release(tag):
@@ -123,7 +154,7 @@ def main():
         print("未配置 GITEE_TOKEN，跳过发行版同步")
         return 0
 
-    created = updated = unchanged = 0
+    created = updated = unchanged = wiped = 0
     failures = []
 
     for release in gh_releases():
@@ -138,7 +169,7 @@ def main():
         try:
             target = gitee_release(tag)
             if target is None:
-                create_release(tag, name, body, prerelease)
+                target = create_release(tag, name, body, prerelease)
                 created += 1
                 print(f"  + 已创建发行版 {tag}", flush=True)
             elif update_release(target, tag, name, body, prerelease):
@@ -147,13 +178,17 @@ def main():
             else:
                 unchanged += 1
                 print(f"  = {tag} 无变化", flush=True)
+
+            if WIPE and target.get("id"):
+                wiped += wipe_attachments(target["id"])
         except Exception as exc:
             failures.append(f"{tag}: {exc}")
             print(f"  ! {tag} 同步失败：{exc}", flush=True)
 
     print(
         f"共处理 {created + updated + unchanged} 个 Release："
-        f"新建 {created}、更新 {updated}、无变化 {unchanged}，失败 {len(failures)} 项"
+        f"新建 {created}、更新 {updated}、无变化 {unchanged}、删除附件 {wiped}，"
+        f"失败 {len(failures)} 项"
     )
     for item in failures:
         print(f"  - {item}")

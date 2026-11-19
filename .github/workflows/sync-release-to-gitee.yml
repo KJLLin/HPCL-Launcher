@@ -9,6 +9,11 @@ on:
         description: 只同步指定 tag，留空则同步全部 Release
         required: false
         type: string
+      wipe_attachments:
+        description: 是否删除 Gitee 该版本的全部附件（true / false）
+        required: false
+        default: "false"
+        type: string
   schedule:
     - cron: "23 4 * * *"
 
@@ -37,6 +42,7 @@ jobs:
           GITEE_OWNER: kjllin
           GITEE_REPO: hpcl-launcher
           TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
+          WIPE_ATTACHMENTS: ${{ github.event.inputs.wipe_attachments || 'false' }}
           PYTHONUNBUFFERED: "1"
           DOWNLOAD_NOTE: "> 安装包请前往 [GitHub 主仓库 Releases](https://github.com/KJLLin/HPCL-Launcher/releases) 下载；Gitee 侧仅保留发行说明。"
         run: |
