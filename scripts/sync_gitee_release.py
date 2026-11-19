@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-"""同步 GitHub Release 到 Gitee；附件总量超额度时，清理最早版本并标注归档。"""
-import json
+"""把 GitHub Release 的页面信息（标题、说明、预发布标记）同步到 Gitee，不上传附件。"""
 import os
-import subprocess
 import sys
-import tempfile
 import time
 
 import requests
@@ -18,12 +15,7 @@ GITEE_TOKEN = os.getenv("GITEE_TOKEN", "")
 GH_REPO = os.getenv("GH_REPO", "KJLLin/HPCL-Launcher")
 GH_TOKEN = os.getenv("GITHUB_TOKEN", "")
 ONLY_TAG = os.getenv("TAG", "").strip()
-MAX_ASSET_MB = int(os.getenv("MAX_ASSET_MB", "100"))
-MAX_TOTAL_MB = float(os.getenv("MAX_TOTAL_MB", "900"))
-BUDGET = int(MAX_TOTAL_MB * 1024 * 1024)
-KEEP_STABLE = int(os.getenv("KEEP_STABLE", "2"))
-KEEP_PRERELEASE = int(os.getenv("KEEP_PRERELEASE", "2"))
-ARCHIVE_NOTE = os.getenv("ARCHIVE_NOTE", "").strip()
+DOWNLOAD_NOTE = os.getenv("DOWNLOAD_NOTE", "").strip()
 
 gh = requests.Session()
 gh.headers["Accept"] = "application/vnd.github+json"
@@ -31,10 +23,6 @@ if GH_TOKEN:
     gh.headers["Authorization"] = f"Bearer {GH_TOKEN}"
 
 params = {"access_token": GITEE_TOKEN}
-
-
-def mb(value):
-    return f"{value / 1048576:.1f} MB"
 
 
 def gh_releases():
@@ -55,43 +43,23 @@ def gh_releases():
 
 def gitee(method, path, **kwargs):
     kwargs.setdefault("timeout", 30)
-    resp = requests.request(method, f"{GITEE_API}{path}", **kwargs)
-    if resp.status_code >= 400:
-        raise RuntimeError(f"{method} {path} -> {resp.status_code} {resp.text[:200]}")
-    return resp.json() if resp.content else {}
-
-
-def gitee_releases():
-    page, items = 1, []
-    while True:
-        batch = gitee(
-            "GET",
-            f"/repos/{GITEE_OWNER}/{GITEE_REPO}/releases",
-            params={**params, "per_page": 100, "page": page},
-        )
-        if not batch:
-            return items
-        items += batch
-        page += 1
-
-
-def list_attachments(release_id):
-    """release.assets 只有 name 和链接，id/size 必须走 attach_files 接口。"""
-    page, items = 1, []
-    while True:
+    for attempt in (1, 2, 3):
         try:
-            batch = gitee(
-                "GET",
-                f"/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release_id}/attach_files",
-                params={**params, "per_page": 100, "page": page},
-            )
+            resp = requests.request(method, f"{GITEE_API}{path}", **kwargs)
         except Exception as exc:
-            print(f"  ! 读取附件列表失败：{exc}", flush=True)
-            return items
-        if not batch or not isinstance(batch, list):
-            return items
-        items += batch
-        page += 1
+            if attempt == 3:
+                raise
+            print(f"  ~ 请求异常，重试 {attempt}/2：{type(exc).__name__}", flush=True)
+            time.sleep(3)
+            continue
+        if resp.status_code >= 500 and attempt < 3:
+            print(f"  ~ 服务端 {resp.status_code}，重试 {attempt}/2", flush=True)
+            time.sleep(3)
+            continue
+        if resp.status_code >= 400:
+            raise RuntimeError(f"{method} {path} -> {resp.status_code} {resp.text[:200]}")
+        return resp.json() if resp.content else {}
+    return {}
 
 
 def gitee_release(tag):
@@ -106,171 +74,48 @@ def gitee_release(tag):
     return resp.json()
 
 
-def gitee_create(release):
-    data = {
-        "access_token": GITEE_TOKEN,
-        "tag_name": release["tag_name"],
-        "name": release.get("name") or release["tag_name"],
-        "body": release.get("body") or "",
-        "prerelease": "true" if release.get("prerelease") else "false",
-        "target_commitish": "main",
-    }
-    return gitee("POST", f"/repos/{GITEE_OWNER}/{GITEE_REPO}/releases", data=data)
+def compose_body(raw):
+    body = (raw or "").strip()
+    if DOWNLOAD_NOTE and DOWNLOAD_NOTE not in body:
+        body = f"{body}\n\n{DOWNLOAD_NOTE}".strip() if body else DOWNLOAD_NOTE
+    return body
 
 
-def delete_asset(release_id, asset_id):
-    gitee(
-        "DELETE",
-        f"/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release_id}/attach_files/{asset_id}",
-        params=params,
+def create_release(tag, name, body, prerelease):
+    return gitee(
+        "POST",
+        f"/repos/{GITEE_OWNER}/{GITEE_REPO}/releases",
+        data={
+            "access_token": GITEE_TOKEN,
+            "tag_name": tag,
+            "name": name,
+            "body": body,
+            "prerelease": "true" if prerelease else "false",
+            "target_commitish": "main",
+        },
     )
 
 
-def mark_archived(release):
-    if not ARCHIVE_NOTE:
-        return
-    body = release.get("body") or ""
-    if ARCHIVE_NOTE in body:
-        return
+def update_release(release, tag, name, body, prerelease):
+    want_pre = "true" if prerelease else "false"
+    if (
+        (release.get("name") or "") == name
+        and (release.get("body") or "").strip() == body
+        and str(release.get("prerelease")).lower() == want_pre
+    ):
+        return False
     gitee(
         "PATCH",
         f"/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release['id']}",
         data={
             "access_token": GITEE_TOKEN,
-            "body": f"{body}\n\n{ARCHIVE_NOTE}".strip(),
+            "tag_name": tag,
+            "name": name,
+            "body": body,
+            "prerelease": want_pre,
         },
     )
-    print(f"    ~ 已标注归档说明：{release.get('tag_name')}")
-
-
-def total_bytes(releases):
-    return sum(
-        a.get("size") or 0 for r in releases for a in list_attachments(r["id"])
-    )
-
-
-def protected_ids(releases):
-    """最新的 N 个稳定版 + N 个测试版永不清理。"""
-    keep = set()
-    for prerelease, limit in ((False, KEEP_STABLE), (True, KEEP_PRERELEASE)):
-        group = [r for r in releases if bool(r.get("prerelease")) == prerelease]
-        group.sort(key=lambda r: r.get("created_at") or "", reverse=True)
-        keep.update(r["id"] for r in group[:limit])
-    return keep
-
-
-def make_room(keep_release_id, incoming):
-    releases = gitee_releases()
-    total = total_bytes(releases)
-    if total + incoming <= BUDGET:
-        print(f"  附件额度 {mb(total)} / {max(MAX_TOTAL_MB, 1):.0f} MB，无需清理")
-        return
-
-    keep = protected_ids(releases)
-    print(
-        f"  额度不足：现有 {mb(total)} + 新增 {mb(incoming)} > {MAX_TOTAL_MB:.0f} MB，"
-        f"开始清理最早版本（保留最新 {KEEP_STABLE} 个正式版、{KEEP_PRERELEASE} 个测试版）"
-    )
-    removable = 0
-    for release in sorted(releases, key=lambda r: r.get("created_at") or ""):
-        if total + incoming <= BUDGET:
-            break
-        if release.get("id") == keep_release_id:
-            continue
-        if release.get("id") in keep:
-            print(f"    = 保留 {release.get('tag_name')}（在保留名单内）")
-            continue
-        assets = list_attachments(release["id"])
-        if not assets:
-            continue
-        removable += 1
-        for asset in assets:
-            delete_asset(release["id"], asset["id"])
-            total -= asset.get("size") or 0
-            print(f"    - 删除附件 {release.get('tag_name')}/{asset['name']}")
-        mark_archived(release)
-
-    if total + incoming > BUDGET:
-        if removable:
-            print("  ! 已无可清理的旧版本，额度仍然不足，本次上传可能失败")
-        else:
-            print(
-                f"  ! 除保留名单（{KEEP_STABLE} 正式 + {KEEP_PRERELEASE} 测试）外没有可删的版本，"
-                "额度仍然不足，本次上传可能失败"
-            )
-
-
-def remote_asset(release_id, name):
-    for item in list_attachments(release_id):
-        if item.get("name") == name:
-            return item
-    return None
-
-
-def wait_landed(release_id, name, local, tries=5, gap=10):
-    """客户端可能先超时，但 Gitee 已把文件收完，以服务端实际大小为准。"""
-    for _ in range(tries):
-        item = remote_asset(release_id, name)
-        if item and (item.get("size") or 0) == local:
-            return True
-        time.sleep(gap)
-    return False
-
-
-def upload(release_id, asset):
-    size = asset.get("size") or 0
-    if size > MAX_ASSET_MB * 1024 * 1024:
-        print(f"  跳过 {asset['name']}：{mb(size)}，超过 Gitee 单附件上限 {MAX_ASSET_MB} MB", flush=True)
-        return "skip"
-
-    fd, path = tempfile.mkstemp()
-    os.close(fd)
-    try:
-        print(f"  下载 {asset['name']}（{mb(size)}）", flush=True)
-        with gh.get(asset["browser_download_url"], stream=True, timeout=(10, 120)) as resp:
-            resp.raise_for_status()
-            with open(path, "wb") as fh:
-                for chunk in resp.iter_content(262144):
-                    fh.write(chunk)
-        local = os.path.getsize(path)
-        url = f"{GITEE_API}/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release_id}/attach_files"
-
-        stale = remote_asset(release_id, asset["name"])
-        if stale and (stale.get("size") or 0) == 0 and stale.get("id"):
-            delete_asset(release_id, stale["id"])
-
-        for attempt in (1, 2):
-            print(f"  上传 {asset['name']}（{mb(local)}）第 {attempt} 次", flush=True)
-            try:
-                with open(path, "rb") as fh:
-                    requests.post(
-                        url, params=params, files={"file": (asset["name"], fh)}, timeout=(10, 60)
-                    )
-            except Exception as exc:
-                print(f"  ~ 客户端断开（{type(exc).__name__}），等服务端落盘", flush=True)
-            if wait_landed(release_id, asset["name"], local):
-                return "ok"
-            print(f"  ! {asset['name']} 服务端未出现完整文件", flush=True)
-
-        print(f"  curl 兜底上传 {asset['name']}", flush=True)
-        proc = subprocess.run(
-            [
-                "curl", "-sS", "--max-time", "100",
-                "-F", f"file=@{path};filename={asset['name']}",
-                f"{url}?access_token={GITEE_TOKEN}",
-            ],
-            capture_output=True, text=True,
-        )
-        if proc.returncode != 0:
-            print(f"  ! curl 兜底失败：{proc.stderr.strip()[:200]}", flush=True)
-        if wait_landed(release_id, asset["name"], local):
-            return "ok"
-
-        print(f"  ! {asset['name']} 全部尝试失败", flush=True)
-        return "fail"
-    finally:
-        if os.path.exists(path):
-            os.remove(path)
+    return True
 
 
 def main():
@@ -278,74 +123,38 @@ def main():
         print("未配置 GITEE_TOKEN，跳过发行版同步")
         return 0
 
-    handled = 0
+    created = updated = unchanged = 0
     failures = []
-    upload_blocked = False
 
     for release in gh_releases():
         tag = release["tag_name"]
         if ONLY_TAG and tag != ONLY_TAG:
             continue
 
-        print(f"{tag}: 检查")
-        target = gitee_release(tag)
-        if target is None:
-            target = gitee_create(release)
-            print(f"  已创建发行版 #{target.get('id')}")
-        else:
-            print(f"  已存在发行版 #{target.get('id')}")
+        name = release.get("name") or tag
+        body = compose_body(release.get("body"))
+        prerelease = bool(release.get("prerelease"))
 
-        release_id = target["id"]
-
-        # 已被额度策略归档的版本不再补传附件，避免"删了又传、传了又删"的死循环
-        if ARCHIVE_NOTE and ARCHIVE_NOTE in (target.get("body") or ""):
-            print("  已在 Gitee 归档，跳过附件同步")
-            handled += 1
-            continue
-
-        assets_on_gitee = list_attachments(release_id)
-        # 上一次中断留下的 0 字节占位要先清掉，否则会被当成"已存在"跳过
-        for old in assets_on_gitee:
-            if (old.get("size") or 0) == 0 and old.get("id") and not old["name"].endswith((".zip", ".tar.gz")):
-                try:
-                    delete_asset(release_id, old["id"])
-                    print(f"  清除空附件占位 {old['name']}", flush=True)
-                except Exception as exc:
-                    print(f"  ! 清除空附件失败 {old['name']}: {exc}", flush=True)
-
-        existing = {a.get("name") for a in assets_on_gitee if (a.get("size") or 0) > 0}
-
-        pending = []
-        for asset in release.get("assets") or []:
-            if asset["name"] in existing:
-                print(f"  已存在附件 {asset['name']}，跳过")
-            elif (asset.get("size") or 0) > MAX_ASSET_MB * 1024 * 1024:
-                print(f"  跳过 {asset['name']}：{mb(asset.get('size') or 0)}，超过单附件上限")
+        try:
+            target = gitee_release(tag)
+            if target is None:
+                create_release(tag, name, body, prerelease)
+                created += 1
+                print(f"  + 已创建发行版 {tag}", flush=True)
+            elif update_release(target, tag, name, body, prerelease):
+                updated += 1
+                print(f"  ~ 已更新发行版 {tag}", flush=True)
             else:
-                pending.append(asset)
+                unchanged += 1
+                print(f"  = {tag} 无变化", flush=True)
+        except Exception as exc:
+            failures.append(f"{tag}: {exc}")
+            print(f"  ! {tag} 同步失败：{exc}", flush=True)
 
-        if pending:
-            make_room(release_id, sum(a.get("size") or 0 for a in pending))
-            for asset in pending:
-                if upload_blocked:
-                    print(f"  跳过 {asset['name']}：本轮上传通道不可用", flush=True)
-                    failures.append(f"{tag}/{asset['name']}: 通道不可用")
-                    continue
-                try:
-                    result = upload(release_id, asset)
-                except Exception as exc:
-                    failures.append(f"{tag}/{asset['name']}: {exc}")
-                    print(f"  上传异常 {asset['name']}: {exc}", flush=True)
-                    continue
-                if result == "ok":
-                    print(f"  已上传 {asset['name']}", flush=True)
-                elif result == "fail":
-                    failures.append(f"{tag}/{asset['name']}: 上传失败")
-                    upload_blocked = True
-
-        handled += 1
-
-    print(f"共处理 {handled} 个 Release，失败 {len(failures)} 项")
+    print(
+        f"共处理 {created + updated + unchanged} 个 Release："
+        f"新建 {created}、更新 {updated}、无变化 {unchanged}，失败 {len(failures)} 项"
+    )
     for item in failures:
         print(f"  - {item}")
     return 1 if failures else 0
