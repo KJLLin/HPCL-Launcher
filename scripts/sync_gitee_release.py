@@ -5,6 +5,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 
 import requests
 
@@ -199,6 +200,23 @@ def make_room(keep_release_id, incoming):
             )
 
 
+def remote_asset(release_id, name):
+    for item in list_attachments(release_id):
+        if item.get("name") == name:
+            return item
+    return None
+
+
+def wait_landed(release_id, name, local, tries=5, gap=10):
+    """客户端可能先超时，但 Gitee 已把文件收完，以服务端实际大小为准。"""
+    for _ in range(tries):
+        item = remote_asset(release_id, name)
+        if item and (item.get("size") or 0) == local:
+            return True
+        time.sleep(gap)
+    return False
+
+
 def upload(release_id, asset):
     size = asset.get("size") or 0
     if size > MAX_ASSET_MB * 1024 * 1024:
@@ -217,45 +235,36 @@ def upload(release_id, asset):
         local = os.path.getsize(path)
         url = f"{GITEE_API}/repos/{GITEE_OWNER}/{GITEE_REPO}/releases/{release_id}/attach_files"
 
+        stale = remote_asset(release_id, asset["name"])
+        if stale and (stale.get("size") or 0) == 0 and stale.get("id"):
+            delete_asset(release_id, stale["id"])
+
         for attempt in (1, 2):
+            print(f"  上传 {asset['name']}（{mb(local)}）第 {attempt} 次", flush=True)
             try:
-                print(f"  上传 {asset['name']}（{mb(local)}）第 {attempt} 次", flush=True)
                 with open(path, "rb") as fh:
-                    resp = requests.post(
-                        url, params=params, files={"file": (asset["name"], fh)}, timeout=180
+                    requests.post(
+                        url, params=params, files={"file": (asset["name"], fh)}, timeout=(10, 60)
                     )
-                if resp.status_code >= 400:
-                    raise RuntimeError(f"{resp.status_code} {resp.text[:150]}")
-                data = resp.json() if resp.content else {}
-                got = data.get("size")
-                if got is not None and got != local:
-                    print(f"  ! {asset['name']} 大小不符（Gitee {got} / 本地 {local}）", flush=True)
-                    if data.get("id"):
-                        delete_asset(release_id, data["id"])
-                    continue
-                return "ok"
             except Exception as exc:
-                print(f"  ! {asset['name']} 第 {attempt} 次失败：{exc}", flush=True)
+                print(f"  ~ 客户端断开（{type(exc).__name__}），等服务端落盘", flush=True)
+            if wait_landed(release_id, asset["name"], local):
+                return "ok"
+            print(f"  ! {asset['name']} 服务端未出现完整文件", flush=True)
 
         print(f"  curl 兜底上传 {asset['name']}", flush=True)
         proc = subprocess.run(
             [
-                "curl", "-sS", "--max-time", "300",
+                "curl", "-sS", "--max-time", "100",
                 "-F", f"file=@{path};filename={asset['name']}",
                 f"{url}?access_token={GITEE_TOKEN}",
             ],
             capture_output=True, text=True,
         )
-        if proc.returncode == 0:
-            try:
-                data = json.loads(proc.stdout)
-            except Exception:
-                data = {}
-            if data.get("size") == local:
-                return "ok"
-            print(f"  ! curl 返回大小不符：{data.get('size')} / {local}", flush=True)
-        else:
+        if proc.returncode != 0:
             print(f"  ! curl 兜底失败：{proc.stderr.strip()[:200]}", flush=True)
+        if wait_landed(release_id, asset["name"], local):
+            return "ok"
 
         print(f"  ! {asset['name']} 全部尝试失败", flush=True)
         return "fail"
@@ -271,6 +280,7 @@ def main():
 
     handled = 0
     failures = []
+    upload_blocked = False
 
     for release in gh_releases():
         tag = release["tag_name"]
@@ -317,6 +327,10 @@ def main():
         if pending:
             make_room(release_id, sum(a.get("size") or 0 for a in pending))
             for asset in pending:
+                if upload_blocked:
+                    print(f"  跳过 {asset['name']}：本轮上传通道不可用", flush=True)
+                    failures.append(f"{tag}/{asset['name']}: 通道不可用")
+                    continue
                 try:
                     result = upload(release_id, asset)
                 except Exception as exc:
@@ -327,6 +341,7 @@ def main():
                     print(f"  已上传 {asset['name']}", flush=True)
                 elif result == "fail":
                     failures.append(f"{tag}/{asset['name']}: 上传失败")
+                    upload_blocked = True
 
         handled += 1
 
