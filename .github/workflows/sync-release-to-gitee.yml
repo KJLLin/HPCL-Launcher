@@ -44,7 +44,10 @@ jobs:
           TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
           WIPE_ATTACHMENTS: ${{ github.event.inputs.wipe_attachments || 'false' }}
           PYTHONUNBUFFERED: "1"
-          SYNC_ASSETS: "true"
+          # GitHub runner 到 Gitee 的上行链路会在写数据阶段超时（实测 ConnectionAborted /
+          # write timed out），10 MB 以上附件几乎必失败，因此附件改由本机/手动同步，
+          # 这里只负责发行版页面与说明，避免每次发版都跑出一个红色 run。
+          SYNC_ASSETS: "false"
           DOWNLOAD_NOTE: "> Windows 安装包可直接在本页附件下载；其他平台（deb / jar / sh）请前往 [GitHub Releases](https://github.com/KJLLin/HPCL-Launcher/releases)。"
         run: |
           set -euo pipefail
