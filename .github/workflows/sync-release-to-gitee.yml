@@ -44,7 +44,8 @@ jobs:
           TAG: ${{ github.event.release.tag_name || github.event.inputs.tag }}
           WIPE_ATTACHMENTS: ${{ github.event.inputs.wipe_attachments || 'false' }}
           PYTHONUNBUFFERED: "1"
-          DOWNLOAD_NOTE: "> 安装包请前往 [GitHub 主仓库 Releases](https://github.com/KJLLin/HPCL-Launcher/releases) 下载；Gitee 侧仅保留发行说明。"
+          SYNC_ASSETS: "true"
+          DOWNLOAD_NOTE: "> Windows 安装包可直接在本页附件下载；其他平台（deb / jar / sh）请前往 [GitHub Releases](https://github.com/KJLLin/HPCL-Launcher/releases)。"
         run: |
           set -euo pipefail
           if [ -z "${GITEE_TOKEN}" ]; then
