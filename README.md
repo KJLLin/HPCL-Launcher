@@ -145,7 +145,7 @@ VERSION_TYPE=stable \
 java -Dhmcl.microsoft.auth.id='你的客户端ID' \
      -Dhmcl.curseforge.apikey='你的APIKey' \
      --add-modules javafx.controls,javafx.fxml,javafx.swing,javafx.web \
-     -jar HPCL-3.17.0.jar
+     -jar HPCL-3.17.1.jar
 ```
 
 代码优先级为 `System.getProperty` > `assets/hmcl.properties`（`OAuthServer.Factory.getClientId`、`CurseForgeRemoteAddonRepository.API_KEY`）。
@@ -160,7 +160,7 @@ HPCL 是 fork，**不连接 HMCL 官方更新端点**（否则会被官方包覆
 
 | 通道 | 设置值 | 匹配的 Release | 当前状态 |
 |---|---|---|---|
-| **稳定版** | `STABLE`（stable 构建默认） | `prerelease=false`，且 tag 不含 `SNAPSHOT / dev / beta / alpha / nightly / rc` 等预览标记 | `v3.17.0` 为第一个正式版 |
+| **稳定版** | `STABLE`（stable 构建默认） | `prerelease=false`，且 tag 不含 `SNAPSHOT / dev / beta / alpha / nightly / rc` 等预览标记 | `v3.17.1` 为当前正式版（`v3.17.0` 为首个正式版） |
 | **测试版** | `BETA`（预览构建默认） | 所有已发布 Release，含 GitHub pre-release | `v3.16.SNAPSHOT` 等预发布在此通道 |
 
 > 通道判定同时看 GitHub 的 `prerelease` 标记和 tag 中的预览词，避免有人忘了勾 pre-release 却把 SNAPSHOT 发到稳定通道。BETA 能看到稳定版，STABLE 永远不会收到预发布。
@@ -176,11 +176,28 @@ HPCL 是 fork，**不连接 HMCL 官方更新端点**（否则会被官方包覆
 - 当前以 `.deb` 安装时无法原位替换，会自动回退到 `.jar` 资产；`.exe` / `.sh` 通过 `ExecutableHeaderHelper` 保留启动头。
 - **发布约定**：每个 Release 都须带 5 个产物（`HPCL-<版本>.exe/.jar/.sh/.deb` + `HPCL-source.dat`）和覆盖这 5 个产物的 `SHA256SUMS.txt`。要发布稳定版，新建语义化 tag 并保持 `prerelease=false`；预发布保持 `prerelease=true`。两端一起更新，避免本地新包被旧 Release 判为「有更新」。
 
+## 安全加固
+
+### CVE-2026-114938（"Java4Shell"）
+
+OpenJDK 17.0.6+ / 21 / 25 / 27 在 x86-64 且支持 AVX-512 VBMI 的 CPU 上，`java.util.Base64` 的基本/URL **解码器**会走 HotSpot C2 intrinsic，处理以 `=` 结尾的畸形输入时输出长度下溢，造成约 62 字节堆越界写，可升级为信息泄露或远程代码执行（CVSS 8.1，POC 已公开）。
+
+HPCL 的处理与上游 HMCL 3.17.2 一致，分两层：
+
+| 层 | 做法 |
+|---|---|
+| **启动器自身** | 新增 `HMCLCore/.../util/Base64Utils.java`，用纯 Java 手写解码器替代 `Base64.getDecoder()`。主代码中已无裸调用（`Base64.getEncoder()` 保留，编码路径不受该漏洞影响） |
+| **被启动的游戏进程** | `DefaultLauncher` 在生成 JVM 参数时调用 `Base64Utils.shouldDisableBase64Intrinsics()`，仅对**受影响的 x86-64 版本区间**追加 `-XX:-UseBASE64Intrinsics`；ARM64 与已修复版本不加，避免影响解码性能 |
+
+`Base64UtilsTest` 用 37 个用例验证与 JDK 解码器行为等价：0~1024 字节全长度遍历、每个 ASCII 字符在各位置替换、以及畸形输入（缺组、错位填充、尾随数据、非字母表字符、长合法前缀 + 畸形后缀）必须同样抛 `IllegalArgumentException`。
+
+> 建议同时把启动器自身所用的 JDK 升级到修复版本：JDK 17 ≥ 17.0.21.1、21 ≥ 21.0.13.1、25 ≥ 25.0.5.1、27 ≥ 27.0.1.1。ARM64 平台不受影响。
+
 ## 运行
 
 ```bash
 # 直接运行 fat jar
-java -jar HMCL/build/libs/HPCL-3.17.0.jar
+java -jar HMCL/build/libs/HPCL-3.17.1.jar
 
 # 或从源码启动（开发调试）
 ./gradlew :HMCL:run

@@ -19,6 +19,7 @@ package org.jackhuang.hmcl.upgrade;
 
 import org.jackhuang.hmcl.EntryPoint;
 import org.jackhuang.hmcl.Metadata;
+import org.jackhuang.hmcl.util.Base64Utils;
 import org.jackhuang.hmcl.util.SwingUtils;
 import org.jackhuang.hmcl.util.io.JarUtils;
 import org.jackhuang.hmcl.util.platform.OperatingSystem;
@@ -204,7 +205,7 @@ public final class HPCLUpdateInstaller {
         if (value == null || value.isEmpty()) {
             return List.of();
         }
-        String joined = new String(Base64.getDecoder().decode(value), StandardCharsets.UTF_8);
+        String joined = new String(Base64Utils.decode(value), StandardCharsets.UTF_8);
         if (joined.isEmpty()) {
             return List.of();
         }
